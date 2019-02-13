@@ -50,6 +50,7 @@ class LoadStores:
 class Windows(tk.Tk):
    def __init__(self, *args, **kwargs):
       tk.Tk.__init__(self, *args, **kwargs)
+      self.title("Select Stores")
       container = tk.Frame(self)
       container.pack(side = "top", fill = "both", expand = True)
       container.grid_rowconfigure(0, weight = 2)
@@ -64,18 +65,40 @@ class Windows(tk.Tk):
          self.frames_dict[frame.storeId] = frame
          frame.grid(row = 0, column = 0, sticky = "nsew")
 
-      self.show_frame(50268)
+      self.show_frame(self.get_file_index())
 
    def load_data(self):
       with open('rec_list.txt', 'rb') as fb:
          rec_list = pickle.load(fb)
       return rec_list
 
-   def show_frame(self, StoreId, Combobox = "None"):
-      if Combobox != "None":
-         print(Combobox.get())
+   def add_to_file(self, storeId, Combobox):
+      with open('user_input.txt', 'rb') as user_input:
+         input_list = pickle.load(user_input)
+         input_list.append([storeId, Combobox.get()])
+      with open('user_input.txt', 'wb') as wb:
+         pickle.dump(input_list, wb)
+         print (input_list)
+
+   def get_file_index(self):
+      with open('user_input.txt', 'rb') as user_input:
+         input_list = pickle.load(user_input)
+         index = len(input_list)
+         storeId = self.rec_list[index][0]
+         return storeId
+
+
+   def show_frame(self, StoreId, storeId = False, Combobox = False):
+      if Combobox:
+         self.add_to_file(storeId, Combobox)
       frame = self.frames_dict[StoreId]
       frame.tkraise()
+
+   
+   def get_list_index(self):
+      with open('rec_list.txt', 'rb') as fb:
+         rec_list = pickle.load(fb)
+      return rec_list
 
 
 
@@ -101,17 +124,18 @@ class StoreRecsPage(tk.Frame):
       combo1.current(len(self.licenses) - 1)
       combo1.pack(side = TOP, fill = X, expand = True)
 
-      button_next = ttk.Button(self, text = "Next Page", command = lambda: controller.show_frame(controller.rec_list[index + 1][0], combo1))
+      button_next = ttk.Button(self, text = "Next Page", command = lambda: controller.show_frame(controller.rec_list[index + 1][0], self.storeId, combo1))
       button_next.pack(side = RIGHT)
       if combo1.get() != 'None of the above.':
          print(combo1.get())
 
 
-      button_back = ttk.Button(self, text = "Previous Page", command = lambda: controller.show_frame(controller.rec_list[index - 1][0], combo1))
+      button_back = ttk.Button(self, text = "Previous Page", command = lambda: controller.show_frame(controller.rec_list[index - 1][0]))
       button_back.pack(side = LEFT)
 
    def get_progress(self):
       return "Completed: {}%".format((self.index/len(self.controller.rec_list))*100)
+
 
 
 
