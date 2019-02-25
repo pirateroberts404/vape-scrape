@@ -21,7 +21,7 @@ def sleep_time(base = 1, tolerance = 1):
     else:
         return np.random.uniform((base + tolerance) * 6, (base + tolerance) * 7)
     
-    
+
 def depth(file):
     """
     Finds depth of JSON-formatted file.
@@ -44,7 +44,8 @@ def build_bounding_box(coord, lat_width = 1, long_width = 1):
     
     return lowerleft, upperright
 
-def parse_storefronts_in_box(coord, license_types):
+
+def parse_storefronts_in_box(coord):
     """
     coord: one box location.
     """
@@ -123,7 +124,7 @@ def parse_storefronts_in_box(coord, license_types):
 
             
             # at this point, go find the strains, phone number, etc. and add to other database
-            phone, license, license_names  = get_metadata(identity, slug, retailer_services, c, conn)
+            phone, license, license_names, email, website = get_metadata(identity, slug, retailer_services, c, conn)
             
             if len(phone) == 0:
                 phone = ""
@@ -132,7 +133,7 @@ def parse_storefronts_in_box(coord, license_types):
             
             temp = [identity, name, state, city, latitude, longitude,
                             license_type, address, rating, reviews_count, zip_code, 
-                            web_url, retailer_services, phone]
+                            web_url, retailer_services, phone, email, website]
 
             for checker in license_types:
                 if checker in license_names:
@@ -142,8 +143,8 @@ def parse_storefronts_in_box(coord, license_types):
                     temp.append("")
             
             queries.append(temp)
-            
-        c.executemany("INSERT OR IGNORE INTO store VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", queries)
+        
+        c.executemany("INSERT OR IGNORE INTO store VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", queries)
         conn.commit()
         conn.close()
         
@@ -175,6 +176,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     check = requests.get(dis + slug)
     tree = html.fromstring(check.content)
     
+    # get license, telephone, email, and website
     # get license
     try:
         license = tree.xpath('//*[@id="collapsible-container"]/div[1]/div[1]/ul/li/text()[3]')
@@ -185,11 +187,24 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     
     # telephone
     try:
-        telephone = tree.xpath('//*[@id="content"]/div[2]/div/div/div[1]/div[1]/div[1]/div[2]/div[2]/div[1]/div[2]/a/text()')
+        telephone = tree.xpath('//*[@id="collapsible-container"]/div[1]/div[1]/div[1]/ul/li[1]/a/text()')
     except:
         telephone = ""
         
+    # email
+    try:
+        email = tree.xpath('//*[@id="collapsible-container"]/div[1]/div[1]/div[1]/ul/li[2]/a/text()')  
+    except:
+        email = ""
         
+    # website
+    try:
+        website = tree.xpath('//*[@id="collapsible-container"]/div[1]/div[1]/div[1]/ul/li[3]/a/text()')
+    except:
+        website = ""
+        
+    #print(license, license_name, telephone, email, website)
+
     # now that we have ID's, we can now check the menu.
     all_items = requests.get(base_link + menu_items.format(1)).json()
     if "data" in all_items:
@@ -245,7 +260,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
         
         c.executemany("INSERT OR IGNORE INTO strain VALUES (?,?,?,?,?,?,?)", strain_queries)
         conn.commit()
-    return telephone, license, license_name
+    return telephone, license, license_name, email, website
         
 def find_stores(lattice, base, tolerance):
     """
@@ -310,7 +325,7 @@ def get_prices(strain_queries, item, identity, name, strain):
 
 def main():
     california_lattice = json.load(open("..//data//california_lattice.json", "rb"))
-    print("Beginning to scrape Weedmaps in California")
+    print("Beginning to scrape Weedmaps in California...")
     print()
     find_stores(california_lattice, 0, 1)
     print("Finished scraping Weedmaps")
