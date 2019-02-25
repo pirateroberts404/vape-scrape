@@ -6,27 +6,31 @@ from tkinter.ttk import *
 import pickle
 from tempfile import TemporaryFile
 import json
+import time
 
 
 class WeedMapStores:
    def __init__(self, wm_location):
       self.wm_location = wm_location
       self.wm_df = pd.read_csv(wm_location)
-      self.categories = ['id', 'name', 'city', 'license_type', 'address', 'zip_code', 'phone']
-      self.wm_df = self.wm_df[self.categories]
+      # Add a license number category.
+      self.wm_df = self.wm_df.rename(index = str, columns = {'id': 'id', 'name': 'Name', 'address': 'Address', 'city': 'City', 
+                                                         'zip_code': 'Zip Code', 'phone' : 'Phone Number', 'license_type' : 'Adult-Use/Medicinal',
+                                                          'web_url': 'WeedMaps URL', 'retailer_services' : 'Services'})
+      self.wm_categories = ['id', 'Name', 'Address', 'City', 'Zip Code', 'Phone Number', 'Adult-Use/Medicinal', 'WeedMaps URL', 'Services']
+      self.wm_df = self.wm_df[self.wm_categories]
 
-   def getSubset(self, wm_id):
+   def getSubset(self, wm_id_list):
       try:
-         return self.wm_df[self.wm_df['id'] == wm_id]
+         return self.wm_df[self.wm_df['id'].isin(wm_id_list)]
       except:
-         print ("Could not find {} indices in licenses_pd").format(wm_id)
+         print ("Could not find indices {} in weedmaps_df").format(wm_id_list)
 
-   def getTuple(self, wm_id):
+   def getWMTuples(self, wm_id_list):
       try:
-         wm_subset_df = self.getSubset(int(wm_id))
-         #tuples = [tuple(x) for x in licenses_subset_pd.values]
-         
-         return tuple(wm_subset_df.values.tolist()[0])
+         wm_subset_df = self.getSubset(wm_id_list)         
+         tuples = [tuple(x) for x in wm_subset_df.values]
+         return tuples
 
       except:
          print ("Failed convert tuples. ")
@@ -37,111 +41,105 @@ class Licenses:
    def __init__(self, licenses_location):
       self.licenses_location = licenses_location
       self.licenses_df = pd.read_csv(licenses_location)
-      self.categories = ['company_name', 'License Number', 'Business Owner',
-                        'Business Structure', 'Premise Address', 'Status', 
-                        'Expiration Date', 'Adult-Use/Medicinal', 'zip_code',
-                        'city', 'email', 'website']
-      self.licenses_df = self.licenses_df[self.categories]
+      self.licenses_df = self.licenses_df.rename(index = str, columns = {'company_name' : 'Name', 'Premise Address' : 'Address', 
+                                                                        'city' : 'City', 'zip_code' : 'Zip Code', 'phone' : 'Phone Number', 'Adult-Use/Medicinal':  'Adult-Use/Medicinal',
+                                                                        'website': 'Web URL', 'License Type': 'License Type', 'Business Owner' : 'Business Owner', 'License Number' : 'License Number'})
+      self.licenses_categories = ['Name', 'Address', 'City', 'Zip Code', 'Phone Number', 'Adult-Use/Medicinal', 'Web URL', 'License Type', 'Business Owner', 'License Number']
+      self.licenses_df = self.licenses_df[self.licenses_categories]
+      self.licenses_df['License Number'] = self.licenses_df['License Number'].str.replace("-", "")
+      
 
-   def getSubset(self, licenses_idx):
+   def getLicenseTuple(self, license_number):
       try:
-         return self.licenses_df.loc[licenses_idx]
+         print("license number: " + license_number)
+         top_tuple = tuple(self.licenses_df[self.licenses_df['License Number'] == license_number].values[0])
+         return top_tuple
 
       except:
-         print ("Could not find {} indices in licenses_pd").format(licenses_idx)
+         print ("Could find license number {} ".format(license_number))
 
-   def getTuple(self, licenses_idx):
-      try:
-         licenses_subset_df = self.getSubset(licenses_idx)
-         #tuple_license = tuple(licenses_subset_df.values)
-         tuples = [tuple(x) for x in licenses_subset_df.values]
-         return tuples
+   
+class JoinedFile(Licenses, WeedMapStores):
+   def __init__(self, licenses_location, wm_location, joined_location):
+      Licenses.__init__(self, licenses_location)
+      WeedMapStores.__init__(self, wm_location)
+      self.joined_location = joined_location
+      self.joined_dict = self.get_joined_dictionary(self.joined_location)
+      self.top_ids = self.get_top_ids()
 
-      except:
-         print ("Pending add to file fix. ")
+   def get_joined_dictionary(self, joined_location):
+      with open (joined_location) as joined_file:
+         joined_data = json.load(joined_file)
 
-   def getLicenseName(self, license_idx):
-      return self.licenses_df['License Number']
+      return joined_data
 
-   def get_wm_format(self, license_idx):
-      return self.licenses_df[['License Number', 'company_name', 'city', 'Adult-Use/Medicinal', 'Premise Address', 'zip_code', 'email']].loc[license_idx]
+   def traverse_list(self, current_license_number, forward = True):
+      current_license_idx = self.top_ids.index(current_license_number)
+      if forward:
+         return self.top_ids[current_license_idx + 1]
+      return self.top_ids[current_license_idx - 1]
+
+   def update_list(self, current_license_number):
+      joined_updated = self.get_joined_dictionary(self.joined_location)
+      return joined_updated[current_license_number]
+
+   def get_top_ids(self):
+      return list(self.joined_dict.keys())
+
+   def get_last_filled(self):
+      empty_item = next((k, v) for k, v in self.joined_dict.items() if len(v) < 1)
+      index_empty = self.top_ids.index(empty_item[0])
+      return self.top_ids[index_empty - 1]
+
+   def add_join(self, license_id, wm_id):
+      with open(self.joined_location) as joined_file:
+         joined_data = json.load(joined_file)
+
+      wm_ids_at_key = joined_data[license_id]
+      wm_ids_at_key.append(int(wm_id))
+
+      joined_data[license_id] = wm_ids_at_key
+
+      with open(self.joined_location, 'w') as joined_file:
+         json.dump(joined_data, joined_file)
 
 
 
-class JoinSuggestions:
-   def __init__(self, filename, licenses, wm_stores):
-      self.filename = filename
-      self.licenses = licenses
-      self.wm_stores = wm_stores
-      self.suggestions = self.read_json(filename)
+class JoinSuggestions(JoinedFile):
+   def __init__(self, licenses_location, wm_location, joined_location, suggestions_location):
+      JoinedFile.__init__(self, licenses_location, wm_location, joined_location)
+      self.suggestions_location = suggestions_location
+      self.suggestions = self.read_json(self.suggestions_location)
+      self.suggestions_dict = {}
 
    def read_json(self, filename):
       with open(filename) as data_file:    
          data = json.load(data_file)
       return data
 
-   def get_top_ids(self):
-      print(list(self.suggestions.keys()))
-      return list(self.suggestions.keys())
-
    def get_bottom_ids(self, top_id):
       bottom_ids = []
-      for suggestion in self.suggestions[top_id]:
-         bottom_ids.append(suggestion[0])
+      if top_id in self.suggestions.keys():
+         return [suggestion[0] for suggestion in self.suggestions[top_id]]
 
-      print("bottom ids: " + str(bottom_ids))
+      else:
+         return self.joined_dict[top_id]
+
       return bottom_ids
 
-   def get_top_tuple(self, top_id):
-      return self.wm_stores.getTuple(top_id)
-      #return self.licenses.getTuple(top_id)
+   def get_top_tuple(self,  item_id, top_id = True):
+      if top_id:
+         return self.getLicenseTuple(item_id)
+
+      else:
+         bottom_tuple = self.getWMTuples([item_id])[0][1:]
+         return bottom_tuple
+
 
    def get_bottom_tuples(self, bottom_ids):
-      return self.licenses.getTuple(bottom_ids)
-      #return self.wm_stores.getTuple(bottom_ids)
+      return self.getWMTuples(bottom_ids)
 
 
-
-
-class JoinedFile:
-   def __init__(self, filename):
-      '''
-      '''
-      self.licenses = Licenses("..//data//searchResultsClean.csv")
-      self.wm_stores = WeedMapStores("..//data//store.csv")
-      self.join_suggestions = JoinSuggestions("..//data//matches.json", self.licenses, self.wm_stores)
-
-      self.joined_df = self.get_joined_df("joined_matches.txt")
-
-
-   def addJoined(self, license_idx, store_idx):
-      try:
-         joined_df = pd.read_pickle(filename)
-         joined_df[joined_df['weedmaps_store_id'] == store_idx]['licenses_idx'] = license_idx
-         joined_df.to_pickle(filename)
-
-      except:
-         print ("failed join. ")
-
-
-   def get_joined_df(self, filename):
-      try:
-         return pd.read_pickle(filename)
-      except:
-         joined_df = pd.DataFrame(columns = {'licenses_idx', 'weedmaps_store_id'})
-         joined_df['licenses_idx'] = self.licenses.licenses_df.index.tolist()
-         joined_df.to_pickle(filename)
-         return joined_df
-
-
-   def clearFile(self):
-      return
-
-
-   def getIndex(self):
-      return
-
-   
 
 
 class Windows(tk.Tk):
@@ -152,86 +150,56 @@ class Windows(tk.Tk):
       self.container.grid_rowconfigure(0, weight = 1)
       self.container.grid_columnconfigure(0, weight = 1)
       self.title("Join Licenses")
-
-
-      
-      self.joined_file = JoinedFile('joined_file.txt')
-      self.join_suggestions = self.joined_file.join_suggestions
-      self.top_ids = self.join_suggestions.get_top_ids()
-
-      self.frames_dict = {}
-
-      for top_id in self.top_ids:
-         bottom_ids = self.join_suggestions.get_bottom_ids(top_id)
-         frame = StoreRecsPage(self.container, self, self.top_ids, bottom_ids, top_id, self.joined_file)
-
-         self.frames_dict[top_id] = frame
-         frame.grid(row = 0, column = 0, sticky = "nsew")
-
-      self.show_frame(self.top_ids[0])
+      self.join_suggestions = JoinSuggestions("..//data//searchResultsClean.csv", "..//data//store.csv", "latent.json", "clean_matches.json")
+      self.show_frame(self.join_suggestions.get_last_filled())
 
 
    def show_frame(self, top_id):
-      frame = self.frames_dict[top_id]
+      frame = StoreRecsPage(self.container, self, self.join_suggestions, top_id)
+      frame.grid(row = 0, column = 0, sticky = "nsew")
       frame.tkraise()
 
 
-
 class StoreRecsPage(tk.Frame):
-   def __init__(self, parent, controller, top_ids, bottom_ids, top_id, joined_file):
+   def __init__(self, parent, controller, JoinSuggestions, top_id):
       tk.Frame.__init__(self, parent)
-
-      self.top_ids = top_ids
-      self.bottom_ids = bottom_ids
       self.top_id = top_id
-      self.joined_file = joined_file
-      self.join_suggestions = self.joined_file.join_suggestions
+      self.join_suggestions = JoinSuggestions
+      self.bottom_ids = self.join_suggestions.get_bottom_ids(self.top_id)
       self.controller = controller
       self.parent = parent
       
-
       label = tk.Label(self, text = "Select the most similar store to the one below. ")
       label.pack(pady = 0, padx = 0)
 
       
       self.treeTop = ttk.Treeview(self, height = 2)
-      top_column_names = ['id', 'name', 'city', 'license_type', 'address', 'zip_code', 'phone']
-      self.treeTop['columns'] = tuple(top_column_names)
+        
+      self.treeTop['columns'] = tuple(self.join_suggestions.licenses_categories)
       
-      for name in top_column_names:
+      for name in self.join_suggestions.licenses_categories:
          self.treeTop.heading(name, text = name)
 
-      self.treeTop.insert("", 0, text = "", values = tuple(self.join_suggestions.get_top_tuple(self.top_id)))
-
-      vsb = ttk.Scrollbar(orient="vertical", command=self.treeTop.yview)
-      #vsb.pack(side = LEFT)
-      #self.treeTop.grid(column=0, row=0, sticky='nsew', in_= parent)
+      self.treeTop.insert("", 0, text = "", values = self.join_suggestions.get_top_tuple(self.top_id))
+      self.add_file_top()
       self.treeTop.pack()
       scrollbar_horizontal = ttk.Scrollbar(self, orient='horizontal', command = self.treeTop.xview)    
       scrollbar_horizontal.pack(fill=X)    
-      
-
       self.treeTop.configure(xscrollcommand=scrollbar_horizontal.set)
 
 
       self.treeBottom = ttk.Treeview(self)
-      bottom_column_names = ['company_name', 'License Number', 'Business Owner',
-                        'Business Structure', 'Premise Address', 'Status', 
-                        'Expiration Date', 'Adult-Use/Medicinal', 'zip_code',
-                        'city', 'email', 'website']
+      self.treeBottom['columns'] = tuple(self.join_suggestions.wm_categories)
+      self.treeBottom['displaycolumns'] = self.join_suggestions.wm_categories[1:]
 
-      self.treeBottom['columns'] = tuple(bottom_column_names)
-
-      for name in bottom_column_names:
+      for name in self.join_suggestions.wm_categories[1:]:
          self.treeBottom.heading(name, text = name)
 
       index = 0
       bottom_tuples = self.join_suggestions.get_bottom_tuples(self.bottom_ids)
-      print(bottom_tuples)
-      for bottom_id in self.bottom_ids:
-         buttom_tuple_idx = self.bottom_ids.index(bottom_id)
-         print(bottom_tuples[buttom_tuple_idx])
-         self.treeBottom.insert("", index, text = str(bottom_id), values = bottom_tuples[buttom_tuple_idx])
+
+      for bottom_tuple in bottom_tuples:
+         self.treeBottom.insert("", index, text = str(bottom_tuple[0]), values = bottom_tuple)
          index += 1
 
       self.treeBottom.bind("<Double-1>", self.OnDoubleClick)
@@ -241,30 +209,47 @@ class StoreRecsPage(tk.Frame):
       
       self.treeBottom.configure(xscrollcommand=scrollbar_horizontal_bottom.set)
 
-      button_next = ttk.Button(self, text = "Next Page", command = lambda: controller.show_frame(top_ids[top_ids.index(top_id) + 1]))
+
+      # self.w = tk.Scale(self, from_=0, to=500, orient=HORIZONTAL, width = 5,  sliderlength = 2)
+      # self.w.pack(fill = 'x', padx=100, pady=[0, 10])
+
+      self.progress = ttk.Progressbar(self, orient=HORIZONTAL, length = 500, value = self.progress_location(), maximum = len(self.join_suggestions.top_ids), mode = 'determinate')
+      self.progress.pack(fill = 'x', padx=100, pady= 1)
+
+      button_next = ttk.Button(self, text = "Next Page", command = lambda: controller.show_frame(self.join_suggestions.traverse_list(top_id)))
       button_next.pack(side = RIGHT)
 
 
-      button_back = ttk.Button(self, text = "Previous Page", command = lambda: controller.show_frame(top_ids[top_ids.index(top_id) - 1]))
+      button_back = ttk.Button(self, text = "Previous Page", command = lambda: controller.show_frame(self.join_suggestions.traverse_list(top_id, forward = False)))
       button_back.pack(side = LEFT)
 
-      # progress = tk.Label(self, text = self.get_progress())
-      # progress.pack(side = BOTTOM)
 
-   # def get_progress(self):
-   #    return "Completed: {}%".format((self.index/len(self.controller.rec_list))*100)
+   def progress_location(self):
+      top_id_location = self.join_suggestions.top_ids.index(self.top_id)
+      return top_id_location
+
+   def add_file_top(self):
+      top_tuples = self.join_suggestions.update_list(self.top_id)
+      if len(top_tuples) > 0: 
+         for wm_id in top_tuples:
+            print ("wm_id: " + str(wm_id))
+            self.treeTop.insert("", 1, text = "You selected", values = self.join_suggestions.get_top_tuple(wm_id, False))
+
 
    def OnDoubleClick(self, event):
       item = self.treeBottom.identify('item', event.x, event.y)
-      license_idx = self.treeBottom.item(item, "text")
-      wm_format_item = self.join_suggestions.licenses.get_wm_format(int(license_idx))
+      wm_id = self.treeBottom.item(item, "text")
+      self.join_suggestions.add_join(self.top_id, wm_id)
+
+      print ("clicked on : " + wm_id)
+      print (self.join_suggestions.get_top_tuple(wm_id, False))
+
       try:
          self.treeTop.delete(self.rowId)
-         self.treeTop.insert("", 1, text = "You selected", values = tuple(wm_format_item))
-         self.joined_file.addJoined(license_idx, self.top_id)
-         #self.treeTop.insert("", 1, values = ('id', 'name', 'city', 'license_type', 'address', 'zip_code', 'phone'))
       except:
-         self.rowId = self.treeTop.insert("", 1, text = "You selected", values = tuple(wm_format_item))
+         pass
+      
+      self.rowId = self.treeTop.insert("", 1, text = "You selected", values = self.join_suggestions.get_top_tuple(wm_id, False))
 
 
 app = Windows()
