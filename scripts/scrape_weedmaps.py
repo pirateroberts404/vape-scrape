@@ -45,7 +45,7 @@ def build_bounding_box(coord, lat_width = 1, long_width = 1):
     return lowerleft, upperright
 
 
-def parse_storefronts_in_box(coord):
+def parse_storefronts_in_box(coord, license_types):
     """
     coord: one box location.
     """
@@ -75,7 +75,7 @@ def parse_storefronts_in_box(coord):
                 
             state = ""
             if "state" in result:
-                state = result["state"]
+                state = result["state"] 
                 
             city = ""
             if "city" in result:
@@ -130,6 +130,16 @@ def parse_storefronts_in_box(coord):
                 phone = ""
             else:
                 phone = phone[0]
+                
+            if len(email) == 0:
+                email = ""
+            else:
+                email = email[0]
+                
+            if len(website) == 0:
+                website = ""
+            else:
+                website = website[0]
             
             temp = [identity, name, state, city, latitude, longitude,
                             license_type, address, rating, reviews_count, zip_code, 
@@ -143,6 +153,7 @@ def parse_storefronts_in_box(coord):
                     temp.append("")
             
             queries.append(temp)
+            #print(temp, len(temp))
         
         c.executemany("INSERT OR IGNORE INTO store VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", queries)
         conn.commit()
@@ -202,8 +213,6 @@ def get_metadata(identity, slug, retailer_services, c, conn):
         website = tree.xpath('//*[@id="collapsible-container"]/div[1]/div[1]/div[1]/ul/li[3]/a/text()')
     except:
         website = ""
-        
-    #print(license, license_name, telephone, email, website)
 
     # now that we have ID's, we can now check the menu.
     all_items = requests.get(base_link + menu_items.format(1)).json()
@@ -328,7 +337,7 @@ def main():
     print("Beginning to scrape Weedmaps in California...")
     print()
     find_stores(california_lattice, 0, 1)
-    print("Finished scraping Weedmaps")
+    print("Finished scraping Weedmaps in California")
     
     
 if __name__ == '__main__':
