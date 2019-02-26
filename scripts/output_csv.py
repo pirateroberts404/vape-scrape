@@ -8,8 +8,8 @@ def main():
     store_table = pd.read_sql('select * from store', conn)
     strain_table = pd.read_sql("select * from strain", conn)
 
-    store_table.to_csv('..//data//store.csv')
-    strain_table.to_csv('..//data//strain.csv')
+    store_table.to_csv('..//data//store.csv', index = False)
+    strain_table.to_csv('..//data//strain.csv', index = False)
     
 if __name__ == '__main__':
     main()
