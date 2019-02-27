@@ -221,18 +221,12 @@ class StoreRecsPage(tk.Frame):
          index += 1
 
       self.treeBottom.bind("<Double-1>", self.OnDoubleClick)
-
-      self.clear_button = tk.Button(self, text = "Clear Joined Matches")
-      self.clear_button.pack(anchor = "nw")
       self.treeBottom.pack(fill = X)
       scrollbar_horizontal_bottom = ttk.Scrollbar(self, orient='horizontal', command = self.treeBottom.xview)    
       scrollbar_horizontal_bottom.pack(fill=X)    
       
       self.treeBottom.configure(xscrollcommand=scrollbar_horizontal_bottom.set)
 
-
-      # self.w = tk.Scale(self, from_=0, to=500, orient=HORIZONTAL, width = 5,  sliderlength = 2)
-      # self.w.pack(fill = 'x', padx=100, pady=[0, 10])
 
       self.progress = ttk.Progressbar(self, orient=HORIZONTAL, length = 500, value = self.progress_location(), maximum = len(self.join_suggestions.top_ids), mode = 'determinate')
       self.progress.pack(fill = 'x', padx=100, pady= 1)
@@ -254,7 +248,7 @@ class StoreRecsPage(tk.Frame):
       if len(top_tuples) > 0: 
          for wm_id in top_tuples:
             print ("wm_id: " + str(wm_id))
-            self.treeTop.insert("", 1, text = "Automatically Selected", values = self.join_suggestions.get_top_tuple(wm_id, False))
+            self.treeTop.insert("", 1, text = "Selected", values = self.join_suggestions.get_top_tuple(wm_id, False))
 
 
    def OnDoubleClick(self, event):
@@ -268,7 +262,7 @@ class StoreRecsPage(tk.Frame):
       except:
          pass
       
-      self.rowId = self.treeTop.insert("", 1, text = "You selected", values = self.join_suggestions.get_top_tuple(wm_id, False))
+      self.rowId = self.treeTop.insert("", 1, text = "Selected", values = self.join_suggestions.get_top_tuple(wm_id, False))
 
 
    def DeleteOnDoubleClick(self, event):
