@@ -41,10 +41,11 @@ class Licenses:
    def __init__(self, licenses_location):
       self.licenses_location = licenses_location
       self.licenses_df = pd.read_csv(licenses_location)
+      self.licenses_df['id'] = "license"
       self.licenses_df = self.licenses_df.rename(index = str, columns = {'company_name' : 'Name', 'Premise Address' : 'Address', 
                                                                         'city' : 'City', 'zip_code' : 'Zip Code', 'phone' : 'Phone Number', 'Adult-Use/Medicinal':  'Adult-Use/Medicinal',
                                                                         'website': 'Web URL', 'License Type': 'License Type', 'Business Owner' : 'Business Owner', 'License Number' : 'License Number'})
-      self.licenses_categories = ['Name', 'Address', 'City', 'Zip Code', 'Phone Number', 'Adult-Use/Medicinal', 'Web URL', 'License Type', 'Business Owner', 'License Number']
+      self.licenses_categories = ['id', 'Name', 'Address', 'City', 'Zip Code', 'Phone Number', 'Adult-Use/Medicinal', 'Web URL', 'License Type', 'Business Owner', 'License Number']
       self.licenses_df = self.licenses_df[self.licenses_categories]
       self.licenses_df['License Number'] = self.licenses_df['License Number'].str.replace("-", "")
       
@@ -103,6 +104,18 @@ class JoinedFile(Licenses, WeedMapStores):
       with open(self.joined_location, 'w') as joined_file:
          json.dump(joined_data, joined_file)
 
+   def delete_join(self, license_id, wm_id):
+      with open(self.joined_location) as joined_file:
+         joined_data = json.load(joined_file)
+
+      wm_ids_at_key = joined_data[license_id]
+      wm_ids_at_key.remove(wm_id)
+
+      joined_data[license_id] = wm_ids_at_key
+
+      with open(self.joined_location, 'w') as joined_file:
+         json.dump(joined_data, joined_file)
+
 
 
 class JoinSuggestions(JoinedFile):
@@ -132,7 +145,7 @@ class JoinSuggestions(JoinedFile):
          return self.getLicenseTuple(item_id)
 
       else:
-         bottom_tuple = self.getWMTuples([item_id])[0][1:]
+         bottom_tuple = self.getWMTuples([item_id])[0]
          return bottom_tuple
 
 
@@ -173,16 +186,21 @@ class StoreRecsPage(tk.Frame):
       label.pack(pady = 0, padx = 0)
 
       
+
       self.treeTop = ttk.Treeview(self, height = 2)
         
       self.treeTop['columns'] = tuple(self.join_suggestions.licenses_categories)
+      self.treeTop['displaycolumns'] = self.join_suggestions.licenses_categories[1:]
       
       for name in self.join_suggestions.licenses_categories:
          self.treeTop.heading(name, text = name)
 
+      
       self.treeTop.insert("", 0, text = "", values = self.join_suggestions.get_top_tuple(self.top_id))
       self.add_file_top()
+      self.treeTop.bind("<Double-1>", self.DeleteOnDoubleClick)
       self.treeTop.pack()
+
       scrollbar_horizontal = ttk.Scrollbar(self, orient='horizontal', command = self.treeTop.xview)    
       scrollbar_horizontal.pack(fill=X)    
       self.treeTop.configure(xscrollcommand=scrollbar_horizontal.set)
@@ -203,15 +221,12 @@ class StoreRecsPage(tk.Frame):
          index += 1
 
       self.treeBottom.bind("<Double-1>", self.OnDoubleClick)
-      self.treeBottom.pack()
+      self.treeBottom.pack(fill = X)
       scrollbar_horizontal_bottom = ttk.Scrollbar(self, orient='horizontal', command = self.treeBottom.xview)    
       scrollbar_horizontal_bottom.pack(fill=X)    
       
       self.treeBottom.configure(xscrollcommand=scrollbar_horizontal_bottom.set)
 
-
-      # self.w = tk.Scale(self, from_=0, to=500, orient=HORIZONTAL, width = 5,  sliderlength = 2)
-      # self.w.pack(fill = 'x', padx=100, pady=[0, 10])
 
       self.progress = ttk.Progressbar(self, orient=HORIZONTAL, length = 500, value = self.progress_location(), maximum = len(self.join_suggestions.top_ids), mode = 'determinate')
       self.progress.pack(fill = 'x', padx=100, pady= 1)
@@ -233,7 +248,7 @@ class StoreRecsPage(tk.Frame):
       if len(top_tuples) > 0: 
          for wm_id in top_tuples:
             print ("wm_id: " + str(wm_id))
-            self.treeTop.insert("", 1, text = "You selected", values = self.join_suggestions.get_top_tuple(wm_id, False))
+            self.treeTop.insert("", 1, text = "Selected", values = self.join_suggestions.get_top_tuple(wm_id, False))
 
 
    def OnDoubleClick(self, event):
@@ -241,16 +256,25 @@ class StoreRecsPage(tk.Frame):
       wm_id = self.treeBottom.item(item, "text")
       self.join_suggestions.add_join(self.top_id, wm_id)
 
-      print ("clicked on : " + wm_id)
-      print (self.join_suggestions.get_top_tuple(wm_id, False))
 
       try:
          self.treeTop.delete(self.rowId)
       except:
          pass
       
-      self.rowId = self.treeTop.insert("", 1, text = "You selected", values = self.join_suggestions.get_top_tuple(wm_id, False))
+      self.rowId = self.treeTop.insert("", 1, text = "Selected", values = self.join_suggestions.get_top_tuple(wm_id, False))
 
+
+   def DeleteOnDoubleClick(self, event):
+      selected_item = self.treeTop.selection()[0] ## get selected item
+      item = self.treeTop.identify('item', event.x, event.y)
+      wm_id = self.treeTop.item(item, "values")
+      print ("clicked on : " + wm_id[0])
+
+      if wm_id[0] != "license":
+         self.treeTop.delete(selected_item)
+         self.join_suggestions.delete_join(self.top_id, int(wm_id[0]))
+      
 
 app = Windows()
 app.mainloop()
