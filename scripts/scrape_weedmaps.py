@@ -84,7 +84,7 @@ def parse_storefronts_in_box(coord, license_types):
     queries = []
     all_stores = {}
     get_all_stores(coord, all_stores)
-    print(len(all_stores))
+    print(len(all_stores), "stores at coordinate", coord)
     
     # if there are actually results
     if len(all_stores) > 0:
@@ -186,7 +186,10 @@ def parse_storefronts_in_box(coord, license_types):
             
             queries.append(temp)
         
-        c.executemany("INSERT OR IGNORE INTO store VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", queries)
+        try:
+            c.executemany("INSERT INTO store VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", queries)
+        except:
+            print("duplicate store")
         conn.commit()
         conn.close()
         
