@@ -12,13 +12,17 @@ import time
 class WeedMapStores:
    def __init__(self, wm_location):
       self.wm_location = wm_location
-      self.wm_df = pd.read_csv(wm_location)
+      self.wm_df = pd.read_csv(wm_location, dtype = {'zip_code': 'str',  'phone' : 'str'})
+      #self.wm_df['address'] = self.wm_df['address'].fillna('')
       # Add a license number category.
       self.wm_df = self.wm_df.rename(index = str, columns = {'id': 'id', 'name': 'Name', 'address': 'Address', 'city': 'City', 
                                                          'zip_code': 'Zip Code', 'phone' : 'Phone Number', 'license_type' : 'Adult-Use/Medicinal',
                                                           'web_url': 'WeedMaps URL', 'retailer_services' : 'Services'})
       self.wm_categories = ['id', 'Name', 'Address', 'City', 'Zip Code', 'Phone Number', 'Adult-Use/Medicinal', 'WeedMaps URL', 'Services']
       self.wm_df = self.wm_df[self.wm_categories]
+      self.wm_df['Address'] = self.wm_df['Address'].fillna('').str.lower()
+
+
 
    def getSubset(self, wm_id_list):
       try:
@@ -40,7 +44,7 @@ class WeedMapStores:
 class Licenses:
    def __init__(self, licenses_location):
       self.licenses_location = licenses_location
-      self.licenses_df = pd.read_csv(licenses_location)
+      self.licenses_df = pd.read_csv(licenses_location, dtype = {'zip_code' : 'str', 'phone' : 'str'})
       self.licenses_df['id'] = "license"
       self.licenses_df = self.licenses_df.rename(index = str, columns = {'company_name' : 'Name', 'Premise Address' : 'Address', 
                                                                         'city' : 'City', 'zip_code' : 'Zip Code', 'phone' : 'Phone Number', 'Adult-Use/Medicinal':  'Adult-Use/Medicinal',
@@ -48,6 +52,7 @@ class Licenses:
       self.licenses_categories = ['id', 'Name', 'Address', 'City', 'Zip Code', 'Phone Number', 'Adult-Use/Medicinal', 'Web URL', 'License Type', 'Business Owner', 'License Number']
       self.licenses_df = self.licenses_df[self.licenses_categories]
       self.licenses_df['License Number'] = self.licenses_df['License Number'].str.replace("-", "")
+      self.licenses_df['Address'] = self.licenses_df['Address'].fillna('').str.lower()
       
 
    def getLicenseTuple(self, license_number):
@@ -163,7 +168,7 @@ class Windows(tk.Tk):
       self.container.grid_rowconfigure(0, weight = 1)
       self.container.grid_columnconfigure(0, weight = 1)
       self.title("Join Licenses")
-      self.join_suggestions = JoinSuggestions("..//data//searchResultsClean.csv", "..//data//store.csv", "latent.json", "clean_matches.json")
+      self.join_suggestions = JoinSuggestions("..//data//searchResultsClean.csv", "..//data//store_clean.csv", "..//data//latent.json", "..//data//matches.json")
       self.show_frame(self.join_suggestions.get_last_filled())
 
 
