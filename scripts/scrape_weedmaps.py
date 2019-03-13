@@ -45,25 +45,57 @@ def build_bounding_box(coord, lat_width = 1, long_width = 1):
     return lowerleft, upperright
 
 
+def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2):
+    
+    # base w and height = 1 
+    link = "https://api-g.weedmaps.com/discovery/v1/listings?filter%5Bany_retailer_services%5D%5B%5D=storefront&filter%5Bany_retailer_services%5D%5B%5D=delivery&filter%5Bbounding_box%5D={},{},{},{}&page_size=100&size=100"
+    lowerleft, upperright = build_bounding_box(coord, lat_width, long_width)
+    link = link.format(lowerleft[0], lowerleft[1], upperright[0], upperright[1])
+    response = requests.get(link).json()
+    listings = response["data"]["listings"]
+    total_listings = response["meta"]["total_listings"]
+
+    if total_listings < 100:
+        if len(listings) > 0:
+            for store in listings:
+                all_stores.update({store["id"]: store})
+    else:
+        
+        # subdivide and get midpoints
+        upperleft_mid = ((coord[0] + upperright[0]) / scale, (coord[1] + lowerleft[1]) / scale)
+        upperright_mid = ((coord[0] + upperright[0]) / scale, (coord[1] + upperright[1]) / scale)
+        lowerleft_mid = ((coord[0] + lowerleft[0]) / scale, (coord[1] + lowerleft[1]) / scale)
+        lowerright_mid = ((coord[0] + lowerleft[0]) / scale, (coord[1] + upperright[1]) / scale)
+        get_all_stores(upperleft_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale)
+        get_all_stores(upperright_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale)
+        get_all_stores(lowerleft_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale)
+        get_all_stores(lowerright_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale)
+
 def parse_storefronts_in_box(coord, license_types):
     """
     coord: one box location.
     """
     
-    link = "https://api-g.weedmaps.com/discovery/v1/listings?filter%5Bany_retailer_services%5D%5B%5D=storefront&filter%5Bany_retailer_services%5D%5B%5D=delivery&filter%5Bbounding_box%5D={},{},{},{}&page_size=100&size=2000"
-    lowerleft, upperright = build_bounding_box(coord)
-    link = link.format(lowerleft[0], lowerleft[1], upperright[0], upperright[1])
-    response = requests.get(link).json()["data"]["listings"]
+    #link = "https://api-g.weedmaps.com/discovery/v1/listings?filter%5Bany_retailer_services%5D%5B%5D=storefront&filter%5Bany_retailer_services%5D%5B%5D=delivery&filter%5Bbounding_box%5D={},{},{},{}&page_size=100&size=2000"
+    ##lowerleft, upperright = build_bounding_box(coord)
+    #link = link.format(lowerleft[0], lowerleft[1], upperright[0], upperright[1])
+    #response = requests.get(link).json()
+    #listings = response["data"]["listings"]
     queries = []
+    all_stores = {}
+    get_all_stores(coord, all_stores)
+    print(len(all_stores))
     
     # if there are actually results
-    if len(response) > 0:
+    if len(all_stores) > 0:
+    
+        all_stores = list(all_stores.values())
         
         conn = sqlite3.connect("..//data//weedmaps.db")
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
         
-        for result in response:
+        for result in all_stores:
             
             identity = ""
             if "id" in result:
@@ -75,7 +107,7 @@ def parse_storefronts_in_box(coord, license_types):
                 
             state = ""
             if "state" in result:
-                state = result["state"] 
+                state = result["state"]
                 
             city = ""
             if "city" in result:
@@ -153,7 +185,6 @@ def parse_storefronts_in_box(coord, license_types):
                     temp.append("")
             
             queries.append(temp)
-            #print(temp, len(temp))
         
         c.executemany("INSERT OR IGNORE INTO store VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", queries)
         conn.commit()
