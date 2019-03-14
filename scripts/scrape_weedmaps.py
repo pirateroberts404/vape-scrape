@@ -6,6 +6,7 @@ import sqlite3
 import json
 import html2text
 import re
+import datetime
 
 from itertools import product
 from lxml import html
@@ -45,7 +46,7 @@ def build_bounding_box(coord, lat_width = 1, long_width = 1):
     return lowerleft, upperright
 
 
-def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2):
+def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2, initial_try = True):
     
     # base w and height = 1 
     link = "https://api-g.weedmaps.com/discovery/v1/listings?filter%5Bany_retailer_services%5D%5B%5D=storefront&filter%5Bany_retailer_services%5D%5B%5D=delivery&filter%5Bbounding_box%5D={},{},{},{}&page_size=100&size=100"
@@ -54,6 +55,9 @@ def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2):
     response = requests.get(link).json()
     listings = response["data"]["listings"]
     total_listings = response["meta"]["total_listings"]
+
+    if initial_try:
+        print(total_listings, "stores found in", coord)
 
     if total_listings < 100:
         if len(listings) > 0:
@@ -66,10 +70,10 @@ def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2):
         upperright_mid = ((coord[0] + upperright[0]) / scale, (coord[1] + upperright[1]) / scale)
         lowerleft_mid = ((coord[0] + lowerleft[0]) / scale, (coord[1] + lowerleft[1]) / scale)
         lowerright_mid = ((coord[0] + lowerleft[0]) / scale, (coord[1] + upperright[1]) / scale)
-        get_all_stores(upperleft_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale)
-        get_all_stores(upperright_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale)
-        get_all_stores(lowerleft_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale)
-        get_all_stores(lowerright_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale)
+        get_all_stores(upperleft_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
+        get_all_stores(upperright_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
+        get_all_stores(lowerleft_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
+        get_all_stores(lowerright_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
 
 def parse_storefronts_in_box(coord, license_types):
     """
@@ -84,12 +88,14 @@ def parse_storefronts_in_box(coord, license_types):
     queries = []
     all_stores = {}
     get_all_stores(coord, all_stores)
-    print(len(all_stores), "stores at coordinate", coord)
+    print(len(all_stores), "stores scraped at coordinate", coord)
+    print()
     
     # if there are actually results
     if len(all_stores) > 0:
     
         all_stores = list(all_stores.values())
+        #print(all_stores[:2])
         
         conn = sqlite3.connect("..//data//weedmaps.db")
         conn.row_factory = sqlite3.Row
@@ -153,7 +159,6 @@ def parse_storefronts_in_box(coord, license_types):
             if "slug" in result:
                 slug = result["slug"]
                 
-
             
             # at this point, go find the strains, phone number, etc. and add to other database
             phone, license, license_names, email, website = get_metadata(identity, slug, retailer_services, c, conn)
@@ -183,13 +188,17 @@ def parse_storefronts_in_box(coord, license_types):
                     temp.append(license[i])
                 else:
                     temp.append("")
-            
+
+            # add date scraped
+            now = datetime.datetime.now().strftime("%Y-%m-%d")
+            temp.append(now)
             queries.append(temp)
         
         try:
-            c.executemany("INSERT INTO store VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", queries)
+            c.executemany("INSERT INTO store VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", queries)
         except:
-            print("duplicate store")
+            pass
+            #print("duplicate store")
         conn.commit()
         conn.close()
         
@@ -252,6 +261,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     all_items = requests.get(base_link + menu_items.format(1)).json()
     if "data" in all_items:
         
+        now = datetime.datetime.now().strftime("%Y-%m-%d")
         num_pages = int(np.ceil(all_items["meta"]["total_menu_items"] / 150))
         
         for page in range(1, num_pages + 1):
@@ -277,31 +287,32 @@ def get_metadata(identity, slug, retailer_services, c, conn):
                         total_items += 1
                         
                     # get prices
-                    strain_queries = get_prices(strain_queries, item, identity, name, strain)
+                    strain_queries = get_prices(strain_queries, item, identity, name, strain, now)
                     
             #on second page of menu
             else:
                 all_items = requests.get(base_link + menu_items.format(page)).json()
                 
-                for item in all_items["data"]["menu_items"]:
-                    
-                    # get name of strain
-                    name = ""
-                    if item["name"] != None:
-                        name = item["name"]
-                    
-                    # get type of strain
-                    strain = ""
-                    if item["category"]["name"] != None:
-                        strain = item["category"]["name"]
-                        if strain not in ["Hybrid", "Indica", "Sativa"]:
-                            continue
-                        total_items += 1
+                if "data" in all_items:
+                    for item in all_items["data"]["menu_items"]:
                         
-                    # get all prices for each item
-                    strain_queries = get_prices(strain_queries, item, identity, name, strain)
+                        # get name of strain
+                        name = ""
+                        if item["name"] != None:
+                            name = item["name"]
+                        
+                        # get type of strain
+                        strain = ""
+                        if item["category"]["name"] != None:
+                            strain = item["category"]["name"]
+                            if strain not in ["Hybrid", "Indica", "Sativa"]:
+                                continue
+                            total_items += 1
+                            
+                        # get all prices for each item
+                        strain_queries = get_prices(strain_queries, item, identity, name, strain, now)
         
-        c.executemany("INSERT OR IGNORE INTO strain VALUES (?,?,?,?,?,?,?)", strain_queries)
+        c.executemany("INSERT OR IGNORE INTO strain VALUES (?,?,?,?,?,?,?,?)", strain_queries)
         conn.commit()
     return telephone, license, license_name, email, website
         
@@ -317,7 +328,7 @@ def find_stores(lattice, base, tolerance):
         time.sleep(sleep_time(base, tolerance))
         
         
-def get_prices(strain_queries, item, identity, name, strain):
+def get_prices(strain_queries, item, identity, name, strain, now):
     
     if item["prices"] != None:
         
@@ -327,7 +338,7 @@ def get_prices(strain_queries, item, identity, name, strain):
 
         # only have grams per eighth
         if len(item["prices"]) == 1:
-            strain_queries.append((identity, name, "", "", "", "", grams_per_eighth))
+            strain_queries.append((identity, name, "", "", "", "", grams_per_eighth, now))
 
         # looks like this: {'price': 6.0, 'units': '1'} or similar
         elif depth(item["prices"]) == 2:
@@ -336,7 +347,7 @@ def get_prices(strain_queries, item, identity, name, strain):
                         price = item["prices"][attr]
                     elif attr == "units":
                         amount = item["prices"][attr]
-                        strain_queries.append((identity, name, strain, price, amount, "", grams_per_eighth))
+                        strain_queries.append((identity, name, strain, price, amount, "", grams_per_eighth, now))
 
         # looks normal
         else:
@@ -352,7 +363,7 @@ def get_prices(strain_queries, item, identity, name, strain):
                                 price = item["prices"][unit][attr]
                             elif attr == "units":
                                 amount = item["prices"][unit][attr]
-                                strain_queries.append((identity, name, strain, price, amount, unit, grams_per_eighth))
+                                strain_queries.append((identity, name, strain, price, amount, unit, grams_per_eighth, now))
 
                     # if there are multiple pricings
                     elif type(item["prices"][unit]) == list:
@@ -362,7 +373,7 @@ def get_prices(strain_queries, item, identity, name, strain):
                                     price = pricing[attr]
                                 elif attr == "units":
                                     amount = pricing[attr]
-                                    strain_queries.append((identity, name, strain, price, amount, unit, grams_per_eighth))
+                                    strain_queries.append((identity, name, strain, price, amount, unit, grams_per_eighth, now))
     return strain_queries
 
 

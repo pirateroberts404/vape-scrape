@@ -13,14 +13,14 @@ def main():
 	    zip_code TEXT, web_url TEXT, retailer_services TEXT, phone TEXT, email TEXT, website TEXT,
 	    adult_use_cultivation TEXT, adult_use_nonstorefront TEXT,
 	    adult_use_retail TEXT, distributor TEXT, medical_cultivation TEXT,
-	    medical_nonstorefront TEXT, medical_retail TEXT, microbusiness TEXT
+	    medical_nonstorefront TEXT, medical_retail TEXT, microbusiness TEXT, date_scraped TEXT
 	);
 	""")
 
 	c.execute("""
 	CREATE TABLE strain (
 	    id INT, name TEXT, strain TEXT, price REAL, 
-	    amount TEXT, unit TEXT, grams_per_eighth REAL
+	    amount TEXT, unit TEXT, grams_per_eighth REAL, date_scraped TEXT
 	);
 	""")
 

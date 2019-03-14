@@ -1,0 +1,5 @@
+Beginning to scrape Weedmaps in California...
+
+310 stores found in [38.068066000000016, -122.742693]
+310 stores scraped at coordinate [38.068066000000016, -122.742693]
+
