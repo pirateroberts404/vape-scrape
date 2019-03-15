@@ -517,11 +517,11 @@ def main():
     
     
 if __name__ == '__main__':
-"""
-possible requests errors:
-    - when accessing bounding boxes
-    - when accessing the store metadata (in other words, getting the actual page)
-    - when accessing the store menu
-"""
+    """
+    possible requests errors:
+        - when accessing bounding boxes
+        - when accessing the store metadata (in other words, getting the actual page)
+        - when accessing the store menu
+    """
     logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", filemode = "w", level=logging.INFO)
     main()
