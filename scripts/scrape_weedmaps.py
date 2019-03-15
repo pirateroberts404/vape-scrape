@@ -56,7 +56,7 @@ def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2, 
     lowerleft, upperright = build_bounding_box(coord, lat_width, long_width)
     link = link.format(lowerleft[0], lowerleft[1], upperright[0], upperright[1])
     logger = logging.getLogger(__name__)
-    logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", level=logging.INFO)    
+    #logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", level=logging.INFO)    
     
     # try to access the API for stores within a bounding box
     response = ""
@@ -114,7 +114,7 @@ def parse_storefronts_in_box(coord, license_types):
     all_stores = {}
     get_all_stores(coord, all_stores)
     logger = logging.getLogger(__name__)
-    logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", level=logging.INFO)
+    #logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", level=logging.INFO)
     logger.info("%s stores scraped at coordinate %s",len(all_stores), str(coord))
 
     # if there are actually results
@@ -225,7 +225,7 @@ def parse_storefronts_in_box(coord, license_types):
         conn.commit()
         conn.close()
         
-		
+        
 def access_attempt(base_link, slug, logger):
 
     check = ""
@@ -235,7 +235,7 @@ def access_attempt(base_link, slug, logger):
         try:
             check = requests.get(base_link)
             if check.status_code != 200:
-				logger.error("Response code %s", str(check.status_code))
+                logger.error("Response code %s", str(check.status_code))
                 logger.error("API call for %s metadata failed", slug)
                 logger.error("Waiting 60 seconds")
                 sleep_time(base = 60, tolerance = 0)
@@ -251,9 +251,9 @@ def access_attempt(base_link, slug, logger):
         except MemoryError:
             logger.error("Parsing the store page for %s resulted in a MemoryError", slug)
             break
-			
-	return check
-		
+            
+    return check
+        
 def get_metadata(identity, slug, retailer_services, c, conn):
     
     """
@@ -267,7 +267,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     """
 
     logger = logging.getLogger(__name__)
-    logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", level=logging.INFO)
+    #logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", filemode = "w", level=logging.INFO)
     #logger.setLevel(logging.INFO)
     
     # build search url
@@ -295,13 +295,13 @@ def get_metadata(identity, slug, retailer_services, c, conn):
         try:
             if cnt > 3:
                 break
-				logger.error("Re-tried converting HTML %s times, giving up", str(cnt))
-			# attempt to access the weedmaps store page for license info
-			check = access_attempt(base_link, slug, logger)
+                logger.error("Re-tried converting HTML %s times, giving up", str(cnt))
+            # attempt to access the weedmaps store page for license info
+            check = access_attempt(base_link, slug, logger)
             tree = html.fromstring(check.content)
             parsed = True
         except Exception as error:
-			logger.error(error)
+            logger.error(error)
             logger.error("Failed to convert HTML to tree for %s", slug)
             #logger.error("Raw scraped file", check.content)
             logger.error("Waiting 120 seconds")
@@ -345,7 +345,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
             
             # returned a good call but with a API limit exceeded message
             if "message" in all_items:
-				logger.error(all_items["message"])
+                logger.error(all_items["message"])
                 logger.error("Rate limit exceeded for %s when looking at page one menu", slug)
                 logger.error("Waiting 30 seconds")
                 sleep_time(base = 60, tolerance = 0)
@@ -353,7 +353,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
                 
         # connection was forcibly shut down
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
-			logger.error(e)
+            logger.error(e)
             logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
             logger.error("Waiting 30 seconds")
             sleep_time(base = 60, tolerance = 0)
@@ -403,7 +403,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
                         
                         # returned a good call but with a API limit exceeded message
                         if "message" in all_items:
-							logger.error(all_items["message"])
+                            logger.error(all_items["message"])
                             logger.error("Rate limit exceeded for %s when looking at page one menu", slug)
                             logger.error("Waiting 60 seconds")
                             sleep_time(base = 60, tolerance = 0)
@@ -411,7 +411,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
                             
                     # connection was forcibly shut down
                     except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
-						logger.error(e)
+                        logger.error(e)
                         logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
                         logger.error("Waiting 60 seconds")
                         sleep_time(base = 60, tolerance = 0)
@@ -519,8 +519,9 @@ def main():
 if __name__ == '__main__':
 """
 possible requests errors:
-	- when accessing bounding boxes
-	- when accessing the store metadata (in other words, getting the actual page)
-	- when accessing the store menu
+    - when accessing bounding boxes
+    - when accessing the store metadata (in other words, getting the actual page)
+    - when accessing the store menu
 """
+    logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", filemode = "w", level=logging.INFO)
     main()
