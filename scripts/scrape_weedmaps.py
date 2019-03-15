@@ -56,9 +56,13 @@ def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2, 
     #logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", level=logging.INFO)    
     
     # try to access the API for stores within a bounding box
+    cnt = 0
     response = ""
     while response == "":
         try:
+            if cnt > 3:
+                logger.error("Retried obtaining stores %s times, giving up", str(cnt))
+                break
             response = requests.get(link).json()
             # Exceeded API limit
             if "message" in response:
@@ -72,6 +76,12 @@ def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2, 
             logger.error("Connection was forcibly shut down bounding box %s with latitude width %s and longitude width %s", str(coord), str(lat_width), str(long_width))
             logger.error("Waiting 60 seconds")
             sleep_time(base = 60, tolerance = 0)
+            cnt += 1
+        except Exception as e:
+            logger.error(e)
+            logger.error("Waiting 60 seconds")
+            sleep_time(base = 60, tolerance = 0)
+            cnt += 1
             
     # sometimes there is an empty response
     if "data" not in response:
@@ -249,6 +259,11 @@ def access_attempt(base_link, slug, logger):
             logger.error("Parsing the store page for %s resulted in a MemoryError", slug)
             break
             
+        except Exception as e:
+            logger.error(e)
+            logger.debug("Waiting 60 seconds")
+            sleep_time(base = 60, tolerance = 0)            
+            
     return check
         
 def get_metadata(identity, slug, retailer_services, c, conn):
@@ -359,6 +374,10 @@ def get_metadata(identity, slug, retailer_services, c, conn):
         except MemoryError:
             logger.error("Parsing the menu for %s resulted in a MemoryError", slug)
             break
+        except Exception as e:
+            logger.error(e)
+            logger.debug("Waiting 60 seconds")
+            sleep_time(base = 60, tolerance = 0)    
             
     # first page of the menu
     if "data" in all_items:
@@ -416,6 +435,10 @@ def get_metadata(identity, slug, retailer_services, c, conn):
                     except MemoryError:
                         logger.error("Parsing the menu for %s resulted in a MemoryError", slug)
                         break
+                    except Exception as e:
+                        logger.error(e)
+                        logger.debug("Waiting 60 seconds")
+                        sleep_time(base = 60, tolerance = 0)    
                 
                 if "data" in all_items:
                     for item in all_items["data"]["menu_items"]:
