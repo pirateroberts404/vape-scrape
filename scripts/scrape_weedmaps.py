@@ -9,6 +9,7 @@ import re
 import datetime
 import logging
 import sys
+import gc
 
 from itertools import product
 from lxml import html
@@ -54,7 +55,8 @@ def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2, 
     link = "https://api-g.weedmaps.com/discovery/v1/listings?filter%5Bany_retailer_services%5D%5B%5D=storefront&filter%5Bany_retailer_services%5D%5B%5D=delivery&filter%5Bbounding_box%5D={},{},{},{}&page_size=100&size=100"
     lowerleft, upperright = build_bounding_box(coord, lat_width, long_width)
     link = link.format(lowerleft[0], lowerleft[1], upperright[0], upperright[1])
-    
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", level=logging.INFO)    
     
     # try to access the API for stores within a bounding box
     response = ""
@@ -276,7 +278,12 @@ def get_metadata(identity, slug, retailer_services, c, conn):
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
             logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
             logger.debug("Waiting 30 seconds")
-            sleep_time(base = 30, tolerance = 0)            
+            sleep_time(base = 30, tolerance = 0)
+        
+        # store page resulted in memoryError
+        except MemoryError:
+            logger.error("Parsing the store page for %s resulted in a MemoryError", slug)
+            break
 
 
 
@@ -291,7 +298,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
             parsed = True
         except Exception as error: 
             logger.error("Failed to convert HTML to tree for %s", slug)
-            logger.error("Raw scraped file", check.content)
+            #logger.error("Raw scraped file", check.content)
             logger.error("Waiting 30 seconds")
             sleep_time(base = 30, tolerance = 0)
             cnt += 1
@@ -344,6 +351,11 @@ def get_metadata(identity, slug, retailer_services, c, conn):
             logger.error("Waiting 30 seconds")
             sleep_time(base = 30, tolerance = 0)
             
+        # json file was "too large"
+        except MemoryError:
+            logger.error("Parsing the menu for %s resulted in a MemoryError", slug)
+            break
+            
     # first page of the menu
     if "data" in all_items:
         
@@ -394,6 +406,10 @@ def get_metadata(identity, slug, retailer_services, c, conn):
                         logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
                         logger.error("Waiting 30 seconds")
                         sleep_time(base = 30, tolerance = 0)
+                    # json file was "too large"
+                    except MemoryError:
+                        logger.error("Parsing the menu for %s resulted in a MemoryError", slug)
+                        break
                 
                 if "data" in all_items:
                     for item in all_items["data"]["menu_items"]:
@@ -477,6 +493,7 @@ def find_stores(lattice, base, tolerance):
     for point in lattice:
         parse_storefronts_in_box(point, license_types)
         time.sleep(sleep_time(base, tolerance))
+        gc.collect()
 
 def main():
     california_lattice = json.load(open("..//data//california_lattice.json", "rb"))
