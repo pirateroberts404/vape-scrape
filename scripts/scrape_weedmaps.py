@@ -66,18 +66,16 @@ def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2, 
             # Exceeded API limit
             if "message" in response:
                 logger.error("Rate limit exceeded for bounding box %s with latitude width %s and longitude width %s", str(coord), str(lat_width), str(long_width))
-                logger.error("Waiting 30 seconds")
-                sleep_time(base = 30, tolerance = 0)
+                logger.error("Waiting 60 seconds")
+                sleep_time(base = 60, tolerance = 0)
                 response = ""
         
         # Connection was forcibly shut down
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
             logger.error("Connection was forcibly shut down bounding box %s with latitude width %s and longitude width %s", str(coord), str(lat_width), str(long_width))
-            logger.error("Waiting 30 seconds")
-            sleep_time(base = 30, tolerance = 0)
+            logger.error("Waiting 60 seconds")
+            sleep_time(base = 60, tolerance = 0)
             
-            
-
     # sometimes there is an empty response
     if "data" not in response:
         return
@@ -111,7 +109,6 @@ def parse_storefronts_in_box(coord, license_types):
     """
     coord: one box location.
     """
-    
 
     queries = []
     all_stores = {}
@@ -120,7 +117,6 @@ def parse_storefronts_in_box(coord, license_types):
     logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", level=logging.INFO)
     logger.info("%s stores scraped at coordinate %s",len(all_stores), str(coord))
 
-    
     # if there are actually results
     if len(all_stores) > 0:
     
@@ -229,6 +225,35 @@ def parse_storefronts_in_box(coord, license_types):
         conn.commit()
         conn.close()
         
+		
+def access_attempt(base_link, slug, logger):
+
+    check = ""
+    while check == "":  
+    
+        # requests returned a page but was a failed response
+        try:
+            check = requests.get(base_link)
+            if check.status_code != 200:
+				logger.error("Response code %s", str(check.status_code))
+                logger.error("API call for %s metadata failed", slug)
+                logger.error("Waiting 60 seconds")
+                sleep_time(base = 60, tolerance = 0)
+                check = ""
+            
+        # connection was forcibly shut down
+        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
+            logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
+            logger.debug("Waiting 60 seconds")
+            sleep_time(base = 60, tolerance = 0)
+        
+        # store page resulted in memoryError
+        except MemoryError:
+            logger.error("Parsing the store page for %s resulted in a MemoryError", slug)
+            break
+			
+	return check
+		
 def get_metadata(identity, slug, retailer_services, c, conn):
     
     """
@@ -250,10 +275,10 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     base_link = "https://api-g.weedmaps.com/discovery/v1/listings/"
     if retailer_services == "storefront":
         base_link += "dispensaries/"
-        dis += "dispensaries/"
+        #dis += "dispensaries/"
     elif retailer_services == "delivery":
         base_link += "deliveries/"
-        dis += "deliveries/"
+        #dis += "deliveries/"
     base_link += slug + "/"
     menu_items = "menu_items?page={}&page_size=150&limit=150"
     strain_queries = []
@@ -262,30 +287,6 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     
     # attempt to access the page
     
-    check = ""
-    while check == "":  
-    
-        # requests returned a page but was a failed response
-        try:
-            check = requests.get(dis + slug)
-            if check.status_code != 200:
-                logger.error("API call for %s metadata failed", slug)
-                logger.error("Waiting 30 seconds")
-                sleep_time(base = 30, tolerance = 0)
-                check = ""
-            
-        # connection was forcibly shut down
-        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
-            logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
-            logger.debug("Waiting 30 seconds")
-            sleep_time(base = 30, tolerance = 0)
-        
-        # store page resulted in memoryError
-        except MemoryError:
-            logger.error("Parsing the store page for %s resulted in a MemoryError", slug)
-            break
-
-
 
     # try setting up the html document into searchable Xpaths
     parsed = False
@@ -294,13 +295,17 @@ def get_metadata(identity, slug, retailer_services, c, conn):
         try:
             if cnt > 3:
                 break
+				logger.error("Re-tried converting HTML %s times, giving up", str(cnt))
+			# attempt to access the weedmaps store page for license info
+			check = access_attempt(base_link, slug, logger)
             tree = html.fromstring(check.content)
             parsed = True
-        except Exception as error: 
+        except Exception as error:
+			logger.error(error)
             logger.error("Failed to convert HTML to tree for %s", slug)
             #logger.error("Raw scraped file", check.content)
-            logger.error("Waiting 30 seconds")
-            sleep_time(base = 30, tolerance = 0)
+            logger.error("Waiting 120 seconds")
+            sleep_time(base = 120, tolerance = 0)
             cnt += 1
     
     # get license, telephone, email, and website
@@ -340,16 +345,18 @@ def get_metadata(identity, slug, retailer_services, c, conn):
             
             # returned a good call but with a API limit exceeded message
             if "message" in all_items:
+				logger.error(all_items["message"])
                 logger.error("Rate limit exceeded for %s when looking at page one menu", slug)
                 logger.error("Waiting 30 seconds")
-                sleep_time(base = 30, tolerance = 0)
+                sleep_time(base = 60, tolerance = 0)
                 all_items = ""
                 
         # connection was forcibly shut down
-        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
+        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
+			logger.error(e)
             logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
             logger.error("Waiting 30 seconds")
-            sleep_time(base = 30, tolerance = 0)
+            sleep_time(base = 60, tolerance = 0)
             
         # json file was "too large"
         except MemoryError:
@@ -396,16 +403,18 @@ def get_metadata(identity, slug, retailer_services, c, conn):
                         
                         # returned a good call but with a API limit exceeded message
                         if "message" in all_items:
+							logger.error(all_items["message"])
                             logger.error("Rate limit exceeded for %s when looking at page one menu", slug)
-                            logger.error("Waiting 30 seconds")
-                            sleep_time(base = 30, tolerance = 0)
+                            logger.error("Waiting 60 seconds")
+                            sleep_time(base = 60, tolerance = 0)
                             all_items = ""
                             
                     # connection was forcibly shut down
-                    except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
+                    except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
+						logger.error(e)
                         logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
-                        logger.error("Waiting 30 seconds")
-                        sleep_time(base = 30, tolerance = 0)
+                        logger.error("Waiting 60 seconds")
+                        sleep_time(base = 60, tolerance = 0)
                     # json file was "too large"
                     except MemoryError:
                         logger.error("Parsing the menu for %s resulted in a MemoryError", slug)
@@ -508,4 +517,10 @@ def main():
     
     
 if __name__ == '__main__':
+"""
+possible requests errors:
+	- when accessing bounding boxes
+	- when accessing the store metadata (in other words, getting the actual page)
+	- when accessing the store menu
+"""
     main()
