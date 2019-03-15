@@ -54,9 +54,29 @@ def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2, 
     link = "https://api-g.weedmaps.com/discovery/v1/listings?filter%5Bany_retailer_services%5D%5B%5D=storefront&filter%5Bany_retailer_services%5D%5B%5D=delivery&filter%5Bbounding_box%5D={},{},{},{}&page_size=100&size=100"
     lowerleft, upperright = build_bounding_box(coord, lat_width, long_width)
     link = link.format(lowerleft[0], lowerleft[1], upperright[0], upperright[1])
-    response = requests.get(link).json()
+    
+    
+    # try to access the API for stores within a bounding box
+    response = ""
+    while response == "":
+        try:
+            response = requests.get(link).json()
+            # Exceeded API limit
+            if "message" in response:
+                logger.error("Rate limit exceeded for bounding box %s with latitude width %s and longitude width %s", str(coord), str(lat_width), str(long_width))
+                logger.debug("Waiting 30 seconds")
+                sleep_time(base = 30, tolerance = 0)
+                response = ""
+        
+        # Connection was forcibly shut down
+        except requests.exceptions:
+            logger.error("Connection was forcibly shut down bounding box %s with latitude width %s and longitude width %s", str(coord), str(lat_width), str(long_width))
+            logger.debug("Waiting 30 seconds")
+            sleep_time(base = 30, tolerance = 0)
+            
+            
 
-    # sometimes there is an empty response / 
+    # sometimes there is an empty response
     if "data" not in response:
         return
     else:
@@ -65,7 +85,7 @@ def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2, 
 
         if initial_try:
             logger = logging.getLogger(__name__)
-            logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+            logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", level=logging.INFO)
             logger.info("%s stores found in %s", str(total_listings), str(coord))
             #print(total_listings, "stores found in", coord)
 
@@ -90,25 +110,19 @@ def parse_storefronts_in_box(coord, license_types):
     coord: one box location.
     """
     
-    #link = "https://api-g.weedmaps.com/discovery/v1/listings?filter%5Bany_retailer_services%5D%5B%5D=storefront&filter%5Bany_retailer_services%5D%5B%5D=delivery&filter%5Bbounding_box%5D={},{},{},{}&page_size=100&size=2000"
-    ##lowerleft, upperright = build_bounding_box(coord)
-    #link = link.format(lowerleft[0], lowerleft[1], upperright[0], upperright[1])
-    #response = requests.get(link).json()
-    #listings = response["data"]["listings"]
+
     queries = []
     all_stores = {}
     get_all_stores(coord, all_stores)
     logger = logging.getLogger(__name__)
-    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+    logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", level=logging.INFO)
     logger.info("%s stores scraped at coordinate %s",len(all_stores), str(coord))
-    #print(len(all_stores), "stores scraped at coordinate", coord)
-    #print()
+
     
     # if there are actually results
     if len(all_stores) > 0:
     
         all_stores = list(all_stores.values())
-        #print(all_stores[:2])
         
         conn = sqlite3.connect("..//data//weedmaps.db")
         conn.row_factory = sqlite3.Row
@@ -217,7 +231,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     
     """
     This function gets metadata that is not available in the API call.
-    It also build the strain database.
+    It also builds the strain database.
     
     identity: ID of the dispensary
     slug: name of dispensary in API
@@ -226,7 +240,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     """
 
     logger = logging.getLogger(__name__)
-    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+    logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", level=logging.INFO)
     #logger.setLevel(logging.INFO)
     
     # build search url
@@ -241,28 +255,46 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     base_link += slug + "/"
     menu_items = "menu_items?page={}&page_size=150&limit=150"
     strain_queries = []
-                
-    check = requests.get(dis + slug)
-    #print(check.content)
-    # if we exceeded rate limit
-    while check.status_code != 200:
-        sleep_time(base = 30, tolerance = 0)
-        logger.error("API call for %s information failed", slug)
-        logger.debug("Waiting 30 seconds")
-        check = requests.get(dis + slug)
-        
+    
 
-    # try parsing the tree
+    
+    # attempt to access the page
+    
+    check = ""
+    while check == "":  
+    
+        # requests returned a page but was a failed response
+        try:
+            check = requests.get(dis + slug)
+            if check.status_code != 200:
+                logger.error("API call for %s metadata failed", slug)
+                logger.debug("Waiting 30 seconds")
+                sleep_time(base = 30, tolerance = 0)
+                check = ""
+            
+        # connection was forcibly shut down
+        except requests.exceptions:
+            logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
+            logger.debug("Waiting 30 seconds")
+            sleep_time(base = 30, tolerance = 0)            
+
+
+
+    # try setting up the html document into searchable Xpaths
     parsed = False
+    cnt = 0
     while not parsed:
         try:
+            if cnt > 3:
+                break
             tree = html.fromstring(check.content)
             parsed = True
-        except Exception as error:
+        except Exception as error: 
             logger.error("Failed to convert HTML to tree for %s", slug)
-            logger.debug("Raw scraped file", check)
+            logger.debug("Raw scraped file", check.content)
             logger.debug("Waiting 30 seconds")
             sleep_time(base = 30, tolerance = 0)
+            cnt += 1
     
     # get license, telephone, email, and website
     # get license
@@ -291,19 +323,28 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     except:
         website = ""
 
-    # now that we have ID's, we can now check the menu.
+    # now that we have the previous fields, we can now check the menu.
     
-    # check if exceeded rate limit API
-    all_items = requests.get(base_link + menu_items.format(1)).json()
-    
-    while "message" in all_items:
-        logger.error("Rate limit exceeded for %s when looking at page one menu", slug)
-        logger.debug("Waiting 30 seconds")
-        sleep_time(base = 30, tolerance = 0)
-        all_items = requests.get(base_link + menu_items.format(1)).json()
-
-    
-    
+    # attempt to access the menu with the API
+    all_items = ""
+    while all_items == "":
+        try:
+            all_items = requests.get(base_link + menu_items.format(1)).json()
+            
+            # returned a good call but with a API limit exceeded message
+            if "message" in all_items:
+                logger.error("Rate limit exceeded for %s when looking at page one menu", slug)
+                logger.debug("Waiting 30 seconds")
+                sleep_time(base = 30, tolerance = 0)
+                all_items = ""
+                
+        # connection was forcibly shut down
+        except requests.exceptions:
+            logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
+            logger.debug("Waiting 30 seconds")
+            sleep_time(base = 30, tolerance = 0)
+            
+    # first page of the menu
     if "data" in all_items:
         
         now = datetime.datetime.now().strftime("%Y-%m")
@@ -336,13 +377,23 @@ def get_metadata(identity, slug, retailer_services, c, conn):
                     
             #on second page of menu
             else:
-            
-                all_items = requests.get(base_link + menu_items.format(page)).json()
-                while "message" in all_items:
-                    logger.error("Rate limit exceeded for %s when looking at page %s menu", slug, str(page))
-                    logger.debug("Waiting 30 seconds")
-                    sleep_time(base = 30, tolerance = 0)
-                    all_items = requests.get(base_link + menu_items.format(page)).json()
+                all_items = ""
+                while all_items == "":
+                    try:
+                        all_items = requests.get(base_link + menu_items.format(page)).json()
+                        
+                        # returned a good call but with a API limit exceeded message
+                        if "message" in all_items:
+                            logger.error("Rate limit exceeded for %s when looking at page one menu", slug)
+                            logger.debug("Waiting 30 seconds")
+                            sleep_time(base = 30, tolerance = 0)
+                            all_items = ""
+                            
+                    # connection was forcibly shut down
+                    except requests.exceptions.ConnectionError:
+                        logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
+                        logger.debug("Waiting 30 seconds")
+                        sleep_time(base = 30, tolerance = 0)
                 
                 if "data" in all_items:
                     for item in all_items["data"]["menu_items"]:
@@ -366,19 +417,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
         c.executemany("INSERT OR IGNORE INTO strain VALUES (?,?,?,?,?,?,?,?)", strain_queries)
         conn.commit()
     return telephone, license, license_name, email, website
-        
-def find_stores(lattice, base, tolerance):
-    """
-    Takes a lattice, finds all stores, and adds to database.
-    """
-    
-    license_types = json.load(open("..//data//license_types.json", "rb"))
-    
-    for point in lattice:
-        parse_storefronts_in_box(point, license_types)
-        time.sleep(sleep_time(base, tolerance))
-        
-        
+
 def get_prices(strain_queries, item, identity, name, strain, now):
     
     if item["prices"] != None:
@@ -427,6 +466,17 @@ def get_prices(strain_queries, item, identity, name, strain, now):
                                     strain_queries.append((identity, name, strain, price, amount, unit, grams_per_eighth, now))
     return strain_queries
 
+    
+def find_stores(lattice, base, tolerance):
+    """
+    Takes a lattice, finds all stores, and adds to database.
+    """
+    
+    license_types = json.load(open("..//data//license_types.json", "rb"))
+    
+    for point in lattice:
+        parse_storefronts_in_box(point, license_types)
+        time.sleep(sleep_time(base, tolerance))
 
 def main():
     california_lattice = json.load(open("..//data//california_lattice.json", "rb"))
