@@ -529,7 +529,7 @@ def find_stores(lattice, base, tolerance):
     
     for point in lattice:
         parse_storefronts_in_box(point, license_types)
-        time.sleep(sleep_time(base, tolerance))
+        sleep_time(base, tolerance)
         gc.collect()
 
 def main():
