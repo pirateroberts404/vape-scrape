@@ -279,7 +279,7 @@ def access_attempt(base_link, slug, logger):
             
     return check
     
-def menu_access_attempt(base_link, menu_items, slug, page):
+def menu_access_attempt(base_link, menu_items, slug, page, logger):
     """
     Assumes that the menu API call will always return some type of JSON, not an empty string. THis means we can keep retrying until we succeed.
     """
@@ -294,7 +294,7 @@ def menu_access_attempt(base_link, menu_items, slug, page):
             if "message" in all_items:
                 logger.error(all_items["message"])
                 logger.error("Rate limit exceeded for %s when looking at page one menu", slug)
-                logger.error("Waiting 30 seconds")
+                logger.error("Waiting 60 seconds")
                 sleep_time(base = 60, tolerance = 0)
                 all_items = ""
                 
@@ -302,7 +302,7 @@ def menu_access_attempt(base_link, menu_items, slug, page):
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
             logger.error(e)
             logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
-            logger.error("Waiting 30 seconds")
+            logger.error("Waiting 60 seconds")
             sleep_time(base = 60, tolerance = 0)
             
         # json file was "too large"
@@ -398,7 +398,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     
     # attempt to access the menu with the API
  
-    all_items = menu_access_attempt(base_link, menu_items, slug, 1)
+    all_items = menu_access_attempt(base_link, menu_items, slug, 1, logger)
     
     # first page of the menu
     if "data" in all_items:
@@ -433,7 +433,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
                     
             #on second page of menu
             else:
-                all_items = menu_access_attempt(base_link, menu_items, slug, page)
+                all_items = menu_access_attempt(base_link, menu_items, slug, page, logger)
                 
                 if "data" in all_items:
                     for item in all_items["data"]["menu_items"]:
