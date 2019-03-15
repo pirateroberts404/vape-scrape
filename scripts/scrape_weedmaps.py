@@ -16,13 +16,13 @@ def sleep_time(base = 1, tolerance = 1):
     choose = np.random.uniform(0, 1)
     
     if 0 <= choose <= 0.9:
-        return np.random.uniform(base, base + tolerance)
+        time.sleep(np.random.uniform(base, base + tolerance))
     if 0.9 < choose <= 0.99:
-        return np.random.uniform((base + tolerance) * 2, (base + tolerance) * 3)
+        time.sleep(np.random.uniform((base + tolerance) * 2, (base + tolerance) * 3))
     else:
-        return np.random.uniform((base + tolerance) * 6, (base + tolerance) * 7)
+        time.sleep(np.random.uniform((base + tolerance) * 6, (base + tolerance) * 7))
+        
     
-
 def depth(file):
     """
     Finds depth of JSON-formatted file.
@@ -67,20 +67,20 @@ def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2, 
             # Exceeded API limit
             if "message" in response:
                 logger.error("Rate limit exceeded for bounding box %s with latitude width %s and longitude width %s", str(coord), str(lat_width), str(long_width))
-                logger.error("Waiting 60 seconds")
-                sleep_time(base = 60, tolerance = 0)
+                logger.error("Waiting 30 seconds")
+                sleep_time(base = 30, tolerance = 0)
                 response = ""
         
         # Connection was forcibly shut down
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
             logger.error("Connection was forcibly shut down bounding box %s with latitude width %s and longitude width %s", str(coord), str(lat_width), str(long_width))
-            logger.error("Waiting 60 seconds")
-            sleep_time(base = 60, tolerance = 0)
+            logger.error("Waiting 30 seconds")
+            sleep_time(base = 30, tolerance = 0)
             cnt += 1
         except Exception as e:
             logger.error(e)
-            logger.error("Waiting 60 seconds")
-            sleep_time(base = 60, tolerance = 0)
+            logger.error("Waiting 30 seconds")
+            sleep_time(base = 30, tolerance = 0)
             cnt += 1
             
     # sometimes there is an empty response
@@ -251,8 +251,8 @@ def access_attempt(base_link, slug, logger):
             if check.status_code != 200:
                 logger.error("Response code %s", str(check.status_code))
                 logger.error("API call for %s metadata failed", slug)
-                logger.error("Waiting 60 seconds")
-                sleep_time(base = 60, tolerance = 0)
+                logger.error("Waiting 30 seconds")
+                sleep_time(base = 30, tolerance = 0)
                 check = ""
                 cnt += 1
         
@@ -262,21 +262,21 @@ def access_attempt(base_link, slug, logger):
         # connection was forcibly shut down
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
             logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
-            logger.debug("Waiting 60 seconds")
-            sleep_time(base = 60, tolerance = 0)
+            logger.debug("Waiting 30 seconds")
+            sleep_time(base = 30, tolerance = 0)
             cnt += 1
         
         # store page resulted in memoryError
         except MemoryError:
             logger.error("Parsing the store page for %s resulted in a MemoryError", slug)
-            logger.error("Waiting 60 seconds")
-            sleep_time(base = 60, tolerance = 0)
+            logger.error("Waiting 30 seconds")
+            sleep_time(base = 30, tolerance = 0)
             cnt += 1
             
         except Exception as e:
             logger.error(e)
-            logger.debug("Waiting 60 seconds")
-            sleep_time(base = 60, tolerance = 0)
+            logger.debug("Waiting 30 seconds")
+            sleep_time(base = 30, tolerance = 0)
             cnt += 1
             
     return check
@@ -300,8 +300,8 @@ def menu_access_attempt(base_link, menu_items, slug, page, logger):
             if "message" in all_items:
                 logger.error(all_items["message"])
                 logger.error("Rate limit exceeded for %s when looking at page %s menu", slug, str(page))
-                logger.error("Waiting 60 seconds")
-                sleep_time(base = 60, tolerance = 0)
+                logger.error("Waiting 30 seconds")
+                sleep_time(base = 30, tolerance = 0)
                 all_items = ""
                 
         except KeyboardInterrupt:
@@ -311,24 +311,22 @@ def menu_access_attempt(base_link, menu_items, slug, page, logger):
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
             logger.error(e)
             logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
-            logger.error("Waiting 60 seconds")
-            sleep_time(base = 60, tolerance = 0)
+            logger.error("Waiting 30 seconds")
+            sleep_time(base = 30, tolerance = 0)
             cnt += 1
             
         # json file was "too large"
         except MemoryError:
             logger.error("Parsing the menu for %s resulted in a MemoryError", slug)
-            logger.error("Waiting 60 seconds")
-            sleep_time(base = 60, tolerance = 0)
+            logger.error("Waiting 30 seconds")
+            sleep_time(base = 30, tolerance = 0)
             cnt += 1
             #break
             
-
-            
         except Exception as e:
             logger.error(e)
-            logger.debug("Waiting 60 seconds")
-            sleep_time(base = 60, tolerance = 0)
+            logger.debug("Waiting 30 seconds")
+            sleep_time(base = 30, tolerance = 0)
             cnt += 1
             
     return all_items
@@ -378,8 +376,8 @@ def get_metadata(identity, slug, retailer_services, c, conn):
             logger.error(error)
             logger.error("Failed to convert HTML to tree for %s", slug)
             #logger.error("Raw scraped file", check.content)
-            logger.error("Waiting 120 seconds")
-            sleep_time(base = 120, tolerance = 0)
+            logger.error("Waiting 60 seconds")
+            sleep_time(base = 60, tolerance = 0)
             cnt += 1
     
     # get license, telephone, email, and website
