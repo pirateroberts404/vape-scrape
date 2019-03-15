@@ -234,12 +234,19 @@ def parse_storefronts_in_box(coord, license_types):
         
         
 def access_attempt(base_link, slug, logger):
+	"""
+	Assumes that there will not always be a well defined store page. This means we cannot keep retrying if the page is actually invalid.
+	"""
 
     check = ""
+    cnt = 0
     while check == "":  
     
         # requests returned a page but was a failed response
         try:
+            if cnt > 2:
+                logger.error("Re-tried accessing the store page %s times, giving up", str(cnt))
+                break
             check = requests.get(base_link)
             if check.status_code != 200:
                 logger.error("Response code %s", str(check.status_code))
@@ -247,24 +254,69 @@ def access_attempt(base_link, slug, logger):
                 logger.error("Waiting 60 seconds")
                 sleep_time(base = 60, tolerance = 0)
                 check = ""
+				cnt += 1
             
         # connection was forcibly shut down
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
             logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
             logger.debug("Waiting 60 seconds")
             sleep_time(base = 60, tolerance = 0)
+            cnt += 1
         
         # store page resulted in memoryError
         except MemoryError:
             logger.error("Parsing the store page for %s resulted in a MemoryError", slug)
             break
             
+        except KeyboardInterrupt:
+            break
+            
         except Exception as e:
             logger.error(e)
             logger.debug("Waiting 60 seconds")
-            sleep_time(base = 60, tolerance = 0)            
+            sleep_time(base = 60, tolerance = 0)
+            cnt += 1
             
     return check
+	
+def menu_access_attempt(base_link, menu_items, slug, page):
+	"""
+	Assumes that the menu API call will always return some type of JSON, not an empty string. THis means we can keep retrying until we succeed.
+	"""
+
+    all_items = ""
+    while all_items == "":
+        try:
+		
+            all_items = requests.get(base_link + menu_items.format(page)).json()
+            
+            # returned a good call but with a API limit exceeded message
+            if "message" in all_items:
+                logger.error(all_items["message"])
+                logger.error("Rate limit exceeded for %s when looking at page one menu", slug)
+                logger.error("Waiting 30 seconds")
+                sleep_time(base = 60, tolerance = 0)
+                all_items = ""
+                
+        # connection was forcibly shut down
+        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
+            logger.error(e)
+            logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
+            logger.error("Waiting 30 seconds")
+            sleep_time(base = 60, tolerance = 0)
+            
+        # json file was "too large"
+        except MemoryError:
+            logger.error("Parsing the menu for %s resulted in a MemoryError", slug)
+            break
+		except KeyboardInterrupt:
+			break
+        except Exception as e:
+            logger.error(e)
+            logger.debug("Waiting 60 seconds")
+            sleep_time(base = 60, tolerance = 0)
+			
+	return all_items
         
 def get_metadata(identity, slug, retailer_services, c, conn):
     
@@ -294,11 +346,6 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     base_link += slug + "/"
     menu_items = "menu_items?page={}&page_size=150&limit=150"
     strain_queries = []
-    
-
-    
-    # attempt to access the page
-    
 
     # try setting up the html document into searchable Xpaths
     parsed = False
@@ -306,8 +353,8 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     while not parsed:
         try:
             if cnt > 3:
-                break
                 logger.error("Re-tried converting HTML %s times, giving up", str(cnt))
+                break
             # attempt to access the weedmaps store page for license info
             check = access_attempt(base_link, slug, logger)
             tree = html.fromstring(check.content)
@@ -350,35 +397,9 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     # now that we have the previous fields, we can now check the menu.
     
     # attempt to access the menu with the API
-    all_items = ""
-    while all_items == "":
-        try:
-            all_items = requests.get(base_link + menu_items.format(1)).json()
-            
-            # returned a good call but with a API limit exceeded message
-            if "message" in all_items:
-                logger.error(all_items["message"])
-                logger.error("Rate limit exceeded for %s when looking at page one menu", slug)
-                logger.error("Waiting 30 seconds")
-                sleep_time(base = 60, tolerance = 0)
-                all_items = ""
-                
-        # connection was forcibly shut down
-        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
-            logger.error(e)
-            logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
-            logger.error("Waiting 30 seconds")
-            sleep_time(base = 60, tolerance = 0)
-            
-        # json file was "too large"
-        except MemoryError:
-            logger.error("Parsing the menu for %s resulted in a MemoryError", slug)
-            break
-        except Exception as e:
-            logger.error(e)
-            logger.debug("Waiting 60 seconds")
-            sleep_time(base = 60, tolerance = 0)    
-            
+ 
+    all_items = menu_access_attempt(base_link, menu_items, slug, 1)
+	
     # first page of the menu
     if "data" in all_items:
         
@@ -412,33 +433,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
                     
             #on second page of menu
             else:
-                all_items = ""
-                while all_items == "":
-                    try:
-                        all_items = requests.get(base_link + menu_items.format(page)).json()
-                        
-                        # returned a good call but with a API limit exceeded message
-                        if "message" in all_items:
-                            logger.error(all_items["message"])
-                            logger.error("Rate limit exceeded for %s when looking at page one menu", slug)
-                            logger.error("Waiting 60 seconds")
-                            sleep_time(base = 60, tolerance = 0)
-                            all_items = ""
-                            
-                    # connection was forcibly shut down
-                    except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
-                        logger.error(e)
-                        logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
-                        logger.error("Waiting 60 seconds")
-                        sleep_time(base = 60, tolerance = 0)
-                    # json file was "too large"
-                    except MemoryError:
-                        logger.error("Parsing the menu for %s resulted in a MemoryError", slug)
-                        break
-                    except Exception as e:
-                        logger.error(e)
-                        logger.debug("Waiting 60 seconds")
-                        sleep_time(base = 60, tolerance = 0)    
+                all_items = menu_access_attempt(base_link, menu_items, slug, page)
                 
                 if "data" in all_items:
                     for item in all_items["data"]["menu_items"]:
@@ -543,5 +538,5 @@ if __name__ == '__main__':
         - when accessing the store metadata (in other words, getting the actual page)
         - when accessing the store menu
     """
-    logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", filemode = "w", level=logging.INFO)
+    logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", filemode = "w", level=logging.DEBUG)
     main()
