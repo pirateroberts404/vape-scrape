@@ -100,7 +100,7 @@ def parse_storefronts_in_box(coord, license_types):
     get_all_stores(coord, all_stores)
     logger = logging.getLogger(__name__)
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-    logger.info("%s stores scraped at coordinate", str(coord))
+    logger.info("%s stores scraped at coordinate %s",len(all_stores), str(coord))
     #print(len(all_stores), "stores scraped at coordinate", coord)
     #print()
     
@@ -172,28 +172,27 @@ def parse_storefronts_in_box(coord, license_types):
             if "slug" in result:
                 slug = result["slug"]
                 
-            
             # at this point, go find the strains, phone number, etc. and add to other database
             phone, license, license_names, email, website = get_metadata(identity, slug, retailer_services, c, conn)
-            
+                
             if len(phone) == 0:
                 phone = ""
             else:
                 phone = phone[0]
-                
+                    
             if len(email) == 0:
                 email = ""
             else:
                 email = email[0]
-                
+                    
             if len(website) == 0:
                 website = ""
             else:
                 website = website[0]
-            
+                
             temp = [identity, name, state, city, latitude, longitude,
-                            license_type, address, rating, reviews_count, zip_code, 
-                            web_url, retailer_services, phone, email, website]
+                        license_type, address, rating, reviews_count, zip_code, 
+                        web_url, retailer_services, phone, email, website]
 
             for checker in license_types:
                 if checker in license_names:
@@ -206,12 +205,11 @@ def parse_storefronts_in_box(coord, license_types):
             now = datetime.datetime.now().strftime("%Y-%m")
             temp.append(now)
             queries.append(temp)
-        
-        #try:
+                
+            #except Exception as error:
+            #logger.error("failed to get metadata for %s", str(id))
+
         c.executemany("INSERT or IGNORE INTO store VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", queries)
-        #except:
-        #    pass
-            #print("duplicate store")
         conn.commit()
         conn.close()
         
@@ -245,13 +243,26 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     strain_queries = []
                 
     check = requests.get(dis + slug)
+    #print(check.content)
+    # if we exceeded rate limit
+    while check.status_code != 200:
+        sleep_time(base = 30, tolerance = 0)
+        logger.error("API call for %s information failed", slug)
+        logger.debug("Waiting 30 seconds")
+        check = requests.get(dis + slug)
+        
 
     # try parsing the tree
-    try:
-        tree = html.fromstring(check.content)
-    except Exception as error:
-        logger.error("Failed to convert HTML to tree", tree)
-        logger.debug("Raw scraped file", check)
+    parsed = False
+    while not parsed:
+        try:
+            tree = html.fromstring(check.content)
+            parsed = True
+        except Exception as error:
+            logger.error("Failed to convert HTML to tree for %s", slug)
+            logger.debug("Raw scraped file", check)
+            logger.debug("Waiting 30 seconds")
+            sleep_time(base = 30, tolerance = 0)
     
     # get license, telephone, email, and website
     # get license
@@ -281,7 +292,18 @@ def get_metadata(identity, slug, retailer_services, c, conn):
         website = ""
 
     # now that we have ID's, we can now check the menu.
+    
+    # check if exceeded rate limit API
     all_items = requests.get(base_link + menu_items.format(1)).json()
+    
+    while "message" in all_items:
+        logger.error("Rate limit exceeded for %s when looking at page one menu", slug)
+        logger.debug("Waiting 30 seconds")
+        sleep_time(base = 30, tolerance = 0)
+        all_items = requests.get(base_link + menu_items.format(1)).json()
+
+    
+    
     if "data" in all_items:
         
         now = datetime.datetime.now().strftime("%Y-%m")
@@ -314,7 +336,13 @@ def get_metadata(identity, slug, retailer_services, c, conn):
                     
             #on second page of menu
             else:
+            
                 all_items = requests.get(base_link + menu_items.format(page)).json()
+                while "message" in all_items:
+                    logger.error("Rate limit exceeded for %s when looking at page %s menu", slug, str(page))
+                    logger.debug("Waiting 30 seconds")
+                    sleep_time(base = 30, tolerance = 0)
+                    all_items = requests.get(base_link + menu_items.format(page)).json()
                 
                 if "data" in all_items:
                     for item in all_items["data"]["menu_items"]:
@@ -403,6 +431,10 @@ def get_prices(strain_queries, item, identity, name, strain, now):
 def main():
     california_lattice = json.load(open("..//data//california_lattice.json", "rb"))
     print("Beginning to scrape Weedmaps in California...")
+    c = input("Would you like to traverse the lattice backwards? [Y/N]")
+    if c == "Y":
+        california_lattice = california_lattice[::-1]
+        print("Traversing backwards")
     print()
     find_stores(california_lattice, 1, 1)
     print("Finished scraping Weedmaps in California")
