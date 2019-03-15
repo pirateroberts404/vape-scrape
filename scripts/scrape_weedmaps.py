@@ -1,17 +1,14 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import time
 import requests
 import sqlite3
 import json
-import html2text
 import re
 import datetime
 import logging
 import sys
 import gc
 
-from itertools import product
 from lxml import html
 
 def sleep_time(base = 1, tolerance = 1):
