@@ -255,7 +255,10 @@ def access_attempt(base_link, slug, logger):
                 sleep_time(base = 60, tolerance = 0)
                 check = ""
                 cnt += 1
-            
+        
+        except KeyboardInterrupt:
+            raise		
+		
         # connection was forcibly shut down
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
             logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
@@ -266,10 +269,9 @@ def access_attempt(base_link, slug, logger):
         # store page resulted in memoryError
         except MemoryError:
             logger.error("Parsing the store page for %s resulted in a MemoryError", slug)
-            break
-            
-        except KeyboardInterrupt:
-            break
+            logger.error("Waiting 60 seconds")
+            sleep_time(base = 60, tolerance = 0)
+			cnt += 1
             
         except Exception as e:
             logger.error(e)
@@ -285,36 +287,49 @@ def menu_access_attempt(base_link, menu_items, slug, page, logger):
     """
 
     all_items = ""
+	cnt = 0
     while all_items == "":
         try:
-        
+			if cnt > 2:
+                logger.error("Re-tried accessing the store menu page %s times, giving up", str(cnt))
+				break
+				
             all_items = requests.get(base_link + menu_items.format(page)).json()
             
             # returned a good call but with a API limit exceeded message
             if "message" in all_items:
                 logger.error(all_items["message"])
-                logger.error("Rate limit exceeded for %s when looking at page one menu", slug)
+                logger.error("Rate limit exceeded for %s when looking at page %s menu", slug, str(page))
                 logger.error("Waiting 60 seconds")
                 sleep_time(base = 60, tolerance = 0)
                 all_items = ""
-                
+				
+        except KeyboardInterrupt:
+            raise
+			
         # connection was forcibly shut down
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
             logger.error(e)
             logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
             logger.error("Waiting 60 seconds")
-            sleep_time(base = 60, tolerance = 0)
+            sleep_time(base = 60, tolerance = 0
+			cnt += 1
             
         # json file was "too large"
         except MemoryError:
             logger.error("Parsing the menu for %s resulted in a MemoryError", slug)
-            break
-        except KeyboardInterrupt:
-            break
+            logger.error("Waiting 60 seconds")
+            sleep_time(base = 60, tolerance = 0)
+			cnt += 1
+            #break
+			
+
+			
         except Exception as e:
             logger.error(e)
             logger.debug("Waiting 60 seconds")
             sleep_time(base = 60, tolerance = 0)
+			cnt += 1
             
     return all_items
         
