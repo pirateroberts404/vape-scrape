@@ -251,8 +251,8 @@ def access_attempt(base_link, slug, logger, time_to_wait):
             if check.status_code != 200:
                 logger.error("Response code %s", str(check.status_code))
                 logger.error("API call for %s metadata failed", slug)
-				logger.error("Waiting %s seconds", str(time_to_wait))
-				sleep_time(base = time_to_wait, tolerance = 0)
+                logger.error("Waiting %s seconds", str(time_to_wait))
+                sleep_time(base = time_to_wait, tolerance = 0)
                 check = ""
                 cnt += 1
         
@@ -300,8 +300,8 @@ def menu_access_attempt(base_link, menu_items, slug, page, logger, time_to_wait)
             if "message" in all_items:
                 logger.error(all_items["message"])
                 logger.error("Rate limit exceeded for %s when looking at page %s menu", slug, str(page))
-				logger.error("Waiting %s seconds", str(time_to_wait))
-				sleep_time(base = time_to_wait, tolerance = 0)
+                logger.error("Waiting %s seconds", str(time_to_wait))
+                sleep_time(base = time_to_wait, tolerance = 0)
                 all_items = ""
                 
         except KeyboardInterrupt:
@@ -533,17 +533,17 @@ def find_stores(lattice, base, tolerance, time_to_wait):
 
 def main():
     california_lattice = json.load(open("..//data//california_lattice.json", "rb"))
-	print("Beginning to scrape Weedmaps in California")
+    print("Beginning to scrape Weedmaps in California")
     c = input("Would you like to traverse the lattice backwards? [Y/N]")
     if c == "Y":
         california_lattice = california_lattice[::-1]
         print("Traversing backwards")
-	if c == "N":
-		print("Traversing forwards")
-	print()
-	c = input("How much time (in seconds) do you want to wait when we exceed the maximum API usage? Please enter an integer")
-	c = float(c.strip()) // 1
-	print("Will sleep for %s seconds", str(c))
+    if c == "N":
+        print("Traversing forwards")
+    print()
+    c = input("How much time (in seconds) do you want to wait when we exceed the maximum API usage? Please enter an integer")
+    c = float(c.strip()) // 1
+    print("Will sleep for %s seconds", str(c))
     find_stores(california_lattice, 1, 1, c)
     print("Finished scraping Weedmaps in California")
     
