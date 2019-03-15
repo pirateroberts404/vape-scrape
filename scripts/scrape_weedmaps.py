@@ -234,9 +234,9 @@ def parse_storefronts_in_box(coord, license_types):
         
         
 def access_attempt(base_link, slug, logger):
-	"""
-	Assumes that there will not always be a well defined store page. This means we cannot keep retrying if the page is actually invalid.
-	"""
+    """
+    Assumes that there will not always be a well defined store page. This means we cannot keep retrying if the page is actually invalid.
+    """
 
     check = ""
     cnt = 0
@@ -254,7 +254,7 @@ def access_attempt(base_link, slug, logger):
                 logger.error("Waiting 60 seconds")
                 sleep_time(base = 60, tolerance = 0)
                 check = ""
-				cnt += 1
+                cnt += 1
             
         # connection was forcibly shut down
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
@@ -278,16 +278,16 @@ def access_attempt(base_link, slug, logger):
             cnt += 1
             
     return check
-	
+    
 def menu_access_attempt(base_link, menu_items, slug, page):
-	"""
-	Assumes that the menu API call will always return some type of JSON, not an empty string. THis means we can keep retrying until we succeed.
-	"""
+    """
+    Assumes that the menu API call will always return some type of JSON, not an empty string. THis means we can keep retrying until we succeed.
+    """
 
     all_items = ""
     while all_items == "":
         try:
-		
+        
             all_items = requests.get(base_link + menu_items.format(page)).json()
             
             # returned a good call but with a API limit exceeded message
@@ -309,14 +309,14 @@ def menu_access_attempt(base_link, menu_items, slug, page):
         except MemoryError:
             logger.error("Parsing the menu for %s resulted in a MemoryError", slug)
             break
-		except KeyboardInterrupt:
-			break
+        except KeyboardInterrupt:
+            break
         except Exception as e:
             logger.error(e)
             logger.debug("Waiting 60 seconds")
             sleep_time(base = 60, tolerance = 0)
-			
-	return all_items
+            
+    return all_items
         
 def get_metadata(identity, slug, retailer_services, c, conn):
     
@@ -399,7 +399,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     # attempt to access the menu with the API
  
     all_items = menu_access_attempt(base_link, menu_items, slug, 1)
-	
+    
     # first page of the menu
     if "data" in all_items:
         
