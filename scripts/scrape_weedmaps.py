@@ -64,14 +64,14 @@ def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2, 
             # Exceeded API limit
             if "message" in response:
                 logger.error("Rate limit exceeded for bounding box %s with latitude width %s and longitude width %s", str(coord), str(lat_width), str(long_width))
-                logger.debug("Waiting 30 seconds")
+                logger.error("Waiting 30 seconds")
                 sleep_time(base = 30, tolerance = 0)
                 response = ""
         
         # Connection was forcibly shut down
-        except requests.exceptions:
+        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
             logger.error("Connection was forcibly shut down bounding box %s with latitude width %s and longitude width %s", str(coord), str(lat_width), str(long_width))
-            logger.debug("Waiting 30 seconds")
+            logger.error("Waiting 30 seconds")
             sleep_time(base = 30, tolerance = 0)
             
             
@@ -268,12 +268,12 @@ def get_metadata(identity, slug, retailer_services, c, conn):
             check = requests.get(dis + slug)
             if check.status_code != 200:
                 logger.error("API call for %s metadata failed", slug)
-                logger.debug("Waiting 30 seconds")
+                logger.error("Waiting 30 seconds")
                 sleep_time(base = 30, tolerance = 0)
                 check = ""
             
         # connection was forcibly shut down
-        except requests.exceptions:
+        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
             logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
             logger.debug("Waiting 30 seconds")
             sleep_time(base = 30, tolerance = 0)            
@@ -291,8 +291,8 @@ def get_metadata(identity, slug, retailer_services, c, conn):
             parsed = True
         except Exception as error: 
             logger.error("Failed to convert HTML to tree for %s", slug)
-            logger.debug("Raw scraped file", check.content)
-            logger.debug("Waiting 30 seconds")
+            logger.error("Raw scraped file", check.content)
+            logger.error("Waiting 30 seconds")
             sleep_time(base = 30, tolerance = 0)
             cnt += 1
     
@@ -334,14 +334,14 @@ def get_metadata(identity, slug, retailer_services, c, conn):
             # returned a good call but with a API limit exceeded message
             if "message" in all_items:
                 logger.error("Rate limit exceeded for %s when looking at page one menu", slug)
-                logger.debug("Waiting 30 seconds")
+                logger.error("Waiting 30 seconds")
                 sleep_time(base = 30, tolerance = 0)
                 all_items = ""
                 
         # connection was forcibly shut down
-        except requests.exceptions:
+        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
             logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
-            logger.debug("Waiting 30 seconds")
+            logger.error("Waiting 30 seconds")
             sleep_time(base = 30, tolerance = 0)
             
     # first page of the menu
@@ -385,14 +385,14 @@ def get_metadata(identity, slug, retailer_services, c, conn):
                         # returned a good call but with a API limit exceeded message
                         if "message" in all_items:
                             logger.error("Rate limit exceeded for %s when looking at page one menu", slug)
-                            logger.debug("Waiting 30 seconds")
+                            logger.error("Waiting 30 seconds")
                             sleep_time(base = 30, tolerance = 0)
                             all_items = ""
                             
                     # connection was forcibly shut down
-                    except requests.exceptions.ConnectionError:
+                    except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
                         logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
-                        logger.debug("Waiting 30 seconds")
+                        logger.error("Waiting 30 seconds")
                         sleep_time(base = 30, tolerance = 0)
                 
                 if "data" in all_items:
