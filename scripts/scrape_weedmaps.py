@@ -445,7 +445,7 @@ def get_metadata(identity, slug, retailer_services, c, conn, time_to_wait):
                     
             #on second page of menu
             else:
-                all_items = menu_access_attempt(base_link, menu_items, slug, page, logger)
+                all_items = menu_access_attempt(base_link, menu_items, slug, page, logger, time_to_wait)
                 
                 if "data" in all_items:
                     for item in all_items["data"]["menu_items"]:
