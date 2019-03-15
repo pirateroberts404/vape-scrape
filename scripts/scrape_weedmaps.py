@@ -46,7 +46,7 @@ def build_bounding_box(coord, lat_width = 1, long_width = 1):
     return lowerleft, upperright
 
 
-def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2, initial_try = True):
+def get_all_stores(coord, all_stores, time_to_wait, lat_width = 1, long_width = 1, scale = 2, initial_try = True):
     
     # base w and height = 1 
     link = "https://api-g.weedmaps.com/discovery/v1/listings?filter%5Bany_retailer_services%5D%5B%5D=storefront&filter%5Bany_retailer_services%5D%5B%5D=delivery&filter%5Bbounding_box%5D={},{},{},{}&page_size=100&size=100"
@@ -67,20 +67,20 @@ def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2, 
             # Exceeded API limit
             if "message" in response:
                 logger.error("Rate limit exceeded for bounding box %s with latitude width %s and longitude width %s", str(coord), str(lat_width), str(long_width))
-                logger.error("Waiting 30 seconds")
-                sleep_time(base = 30, tolerance = 0)
+                logger.error("Waiting %s seconds", str(time_to_wait))
+                sleep_time(base = time_to_wait, tolerance = 0)
                 response = ""
         
         # Connection was forcibly shut down
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
             logger.error("Connection was forcibly shut down bounding box %s with latitude width %s and longitude width %s", str(coord), str(lat_width), str(long_width))
-            logger.error("Waiting 30 seconds")
-            sleep_time(base = 30, tolerance = 0)
+            logger.error("Waiting %s seconds", str(time_to_wait))
+            sleep_time(base = time_to_wait, tolerance = 0)
             cnt += 1
         except Exception as e:
             logger.error(e)
-            logger.error("Waiting 30 seconds")
-            sleep_time(base = 30, tolerance = 0)
+            logger.error("Waiting %s seconds", str(time_to_wait))
+            sleep_time(base = time_to_wait, tolerance = 0)
             cnt += 1
             
     # sometimes there is an empty response
@@ -112,14 +112,14 @@ def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2, 
             get_all_stores(lowerleft_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
             get_all_stores(lowerright_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
 
-def parse_storefronts_in_box(coord, license_types):
+def parse_storefronts_in_box(coord, license_types, time_to_wait):
     """
     coord: one box location.
     """
 
     queries = []
     all_stores = {}
-    get_all_stores(coord, all_stores)
+    get_all_stores(coord, all_stores, time_to_wait)
     logger = logging.getLogger(__name__)
     #logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", level=logging.INFO)
     logger.info("%s stores scraped at coordinate %s",len(all_stores), str(coord))
@@ -192,7 +192,7 @@ def parse_storefronts_in_box(coord, license_types):
                 slug = result["slug"]
                 
             # at this point, go find the strains, phone number, etc. and add to other database
-            phone, license, license_names, email, website = get_metadata(identity, slug, retailer_services, c, conn)
+            phone, license, license_names, email, website = get_metadata(identity, slug, retailer_services, c, conn, time_to_wait)
                 
             if len(phone) == 0:
                 phone = ""
@@ -233,7 +233,7 @@ def parse_storefronts_in_box(coord, license_types):
         conn.close()
         
         
-def access_attempt(base_link, slug, logger):
+def access_attempt(base_link, slug, logger, time_to_wait):
     """
     Assumes that there will not always be a well defined store page. This means we cannot keep retrying if the page is actually invalid.
     """
@@ -251,8 +251,8 @@ def access_attempt(base_link, slug, logger):
             if check.status_code != 200:
                 logger.error("Response code %s", str(check.status_code))
                 logger.error("API call for %s metadata failed", slug)
-                logger.error("Waiting 30 seconds")
-                sleep_time(base = 30, tolerance = 0)
+				logger.error("Waiting %s seconds", str(time_to_wait))
+				sleep_time(base = time_to_wait, tolerance = 0)
                 check = ""
                 cnt += 1
         
@@ -262,26 +262,26 @@ def access_attempt(base_link, slug, logger):
         # connection was forcibly shut down
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
             logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
-            logger.debug("Waiting 30 seconds")
-            sleep_time(base = 30, tolerance = 0)
+            logger.error("Waiting %s seconds", str(time_to_wait))
+            sleep_time(base = time_to_wait, tolerance = 0)
             cnt += 1
         
         # store page resulted in memoryError
         except MemoryError:
             logger.error("Parsing the store page for %s resulted in a MemoryError", slug)
-            logger.error("Waiting 30 seconds")
-            sleep_time(base = 30, tolerance = 0)
+            logger.error("Waiting %s seconds", str(time_to_wait))
+            sleep_time(base = time_to_wait, tolerance = 0)
             cnt += 1
             
         except Exception as e:
             logger.error(e)
-            logger.debug("Waiting 30 seconds")
-            sleep_time(base = 30, tolerance = 0)
+            logger.error("Waiting %s seconds", str(time_to_wait))
+            sleep_time(base = time_to_wait, tolerance = 0)
             cnt += 1
             
     return check
     
-def menu_access_attempt(base_link, menu_items, slug, page, logger):
+def menu_access_attempt(base_link, menu_items, slug, page, logger, time_to_wait):
     """
     Assumes that the menu API call will always return some type of JSON, not an empty string. THis means we can keep retrying until we succeed.
     """
@@ -300,8 +300,8 @@ def menu_access_attempt(base_link, menu_items, slug, page, logger):
             if "message" in all_items:
                 logger.error(all_items["message"])
                 logger.error("Rate limit exceeded for %s when looking at page %s menu", slug, str(page))
-                logger.error("Waiting 30 seconds")
-                sleep_time(base = 30, tolerance = 0)
+				logger.error("Waiting %s seconds", str(time_to_wait))
+				sleep_time(base = time_to_wait, tolerance = 0)
                 all_items = ""
                 
         except KeyboardInterrupt:
@@ -311,27 +311,27 @@ def menu_access_attempt(base_link, menu_items, slug, page, logger):
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
             logger.error(e)
             logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
-            logger.error("Waiting 30 seconds")
-            sleep_time(base = 30, tolerance = 0)
+            logger.error("Waiting %s seconds", str(time_to_wait))
+            sleep_time(base = time_to_wait, tolerance = 0)
             cnt += 1
             
         # json file was "too large"
         except MemoryError:
             logger.error("Parsing the menu for %s resulted in a MemoryError", slug)
-            logger.error("Waiting 30 seconds")
-            sleep_time(base = 30, tolerance = 0)
+            logger.error("Waiting %s seconds", str(time_to_wait))
+            sleep_time(base = time_to_wait, tolerance = 0)
             cnt += 1
             #break
             
         except Exception as e:
             logger.error(e)
-            logger.debug("Waiting 30 seconds")
-            sleep_time(base = 30, tolerance = 0)
+            logger.error("Waiting %s seconds", str(time_to_wait))
+            sleep_time(base = time_to_wait, tolerance = 0)
             cnt += 1
             
     return all_items
         
-def get_metadata(identity, slug, retailer_services, c, conn):
+def get_metadata(identity, slug, retailer_services, c, conn, time_to_wait):
     
     """
     This function gets metadata that is not available in the API call.
@@ -369,15 +369,14 @@ def get_metadata(identity, slug, retailer_services, c, conn):
                 logger.error("Re-tried converting HTML %s times, giving up", str(cnt))
                 break
             # attempt to access the weedmaps store page for license info
-            check = access_attempt(base_link, slug, logger)
+            check = access_attempt(base_link, slug, logger, time_to_wait)
             tree = html.fromstring(check.content)
             parsed = True
         except Exception as error:
             logger.error(error)
             logger.error("Failed to convert HTML to tree for %s", slug)
-            #logger.error("Raw scraped file", check.content)
             logger.error("Waiting 60 seconds")
-            sleep_time(base = 60, tolerance = 0)
+            sleep_time(base = time_to_wait, tolerance = 0)
             cnt += 1
     
     # get license, telephone, email, and website
@@ -411,7 +410,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     
     # attempt to access the menu with the API
  
-    all_items = menu_access_attempt(base_link, menu_items, slug, 1, logger)
+    all_items = menu_access_attempt(base_link, menu_items, slug, 1, logger, time_to_wait)
     
     # first page of the menu
     if "data" in all_items:
@@ -520,7 +519,7 @@ def get_prices(strain_queries, item, identity, name, strain, now):
     return strain_queries
 
     
-def find_stores(lattice, base, tolerance):
+def find_stores(lattice, base, tolerance, time_to_wait):
     """
     Takes a lattice, finds all stores, and adds to database.
     """
@@ -528,19 +527,24 @@ def find_stores(lattice, base, tolerance):
     license_types = json.load(open("..//data//license_types.json", "rb"))
     
     for point in lattice:
-        parse_storefronts_in_box(point, license_types)
+        parse_storefronts_in_box(point, license_types, time_to_wait)
         sleep_time(base, tolerance)
         gc.collect()
 
 def main():
     california_lattice = json.load(open("..//data//california_lattice.json", "rb"))
-    print("Beginning to scrape Weedmaps in California...")
+	print("Beginning to scrape Weedmaps in California")
     c = input("Would you like to traverse the lattice backwards? [Y/N]")
     if c == "Y":
         california_lattice = california_lattice[::-1]
         print("Traversing backwards")
-    print()
-    find_stores(california_lattice, 1, 1)
+	if c == "N":
+		print("Traversing forwards")
+	print()
+	c = input("How much time (in seconds) do you want to wait when we exceed the maximum API usage? Please enter an integer")
+	c = float(c.strip()) // 1
+	print("Will sleep for %s seconds", str(c))
+    find_stores(california_lattice, 1, 1, c)
     print("Finished scraping Weedmaps in California")
     
     
