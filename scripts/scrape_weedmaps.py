@@ -7,6 +7,8 @@ import json
 import html2text
 import re
 import datetime
+import logging
+import sys
 
 from itertools import product
 from lxml import html
@@ -53,27 +55,35 @@ def get_all_stores(coord, all_stores, lat_width = 1, long_width = 1, scale = 2, 
     lowerleft, upperright = build_bounding_box(coord, lat_width, long_width)
     link = link.format(lowerleft[0], lowerleft[1], upperright[0], upperright[1])
     response = requests.get(link).json()
-    listings = response["data"]["listings"]
-    total_listings = response["meta"]["total_listings"]
 
-    if initial_try:
-        print(total_listings, "stores found in", coord)
-
-    if total_listings < 100:
-        if len(listings) > 0:
-            for store in listings:
-                all_stores.update({store["id"]: store})
+    # sometimes there is an empty response / 
+    if "data" not in response:
+        return
     else:
-        
-        # subdivide and get midpoints
-        upperleft_mid = ((coord[0] + upperright[0]) / scale, (coord[1] + lowerleft[1]) / scale)
-        upperright_mid = ((coord[0] + upperright[0]) / scale, (coord[1] + upperright[1]) / scale)
-        lowerleft_mid = ((coord[0] + lowerleft[0]) / scale, (coord[1] + lowerleft[1]) / scale)
-        lowerright_mid = ((coord[0] + lowerleft[0]) / scale, (coord[1] + upperright[1]) / scale)
-        get_all_stores(upperleft_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
-        get_all_stores(upperright_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
-        get_all_stores(lowerleft_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
-        get_all_stores(lowerright_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
+        listings = response["data"]["listings"]
+        total_listings = response["meta"]["total_listings"]
+
+        if initial_try:
+            logger = logging.getLogger(__name__)
+            logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+            logger.info("%s stores found in %s", str(total_listings), str(coord))
+            #print(total_listings, "stores found in", coord)
+
+        if total_listings < 100:
+            if len(listings) > 0:
+                for store in listings:
+                    all_stores.update({store["id"]: store})
+        else:
+            
+            # subdivide and get midpoints
+            upperleft_mid = ((coord[0] + upperright[0]) / scale, (coord[1] + lowerleft[1]) / scale)
+            upperright_mid = ((coord[0] + upperright[0]) / scale, (coord[1] + upperright[1]) / scale)
+            lowerleft_mid = ((coord[0] + lowerleft[0]) / scale, (coord[1] + lowerleft[1]) / scale)
+            lowerright_mid = ((coord[0] + lowerleft[0]) / scale, (coord[1] + upperright[1]) / scale)
+            get_all_stores(upperleft_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
+            get_all_stores(upperright_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
+            get_all_stores(lowerleft_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
+            get_all_stores(lowerright_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
 
 def parse_storefronts_in_box(coord, license_types):
     """
@@ -88,8 +98,11 @@ def parse_storefronts_in_box(coord, license_types):
     queries = []
     all_stores = {}
     get_all_stores(coord, all_stores)
-    print(len(all_stores), "stores scraped at coordinate", coord)
-    print()
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+    logger.info("%s stores scraped at coordinate", str(coord))
+    #print(len(all_stores), "stores scraped at coordinate", coord)
+    #print()
     
     # if there are actually results
     if len(all_stores) > 0:
@@ -137,7 +150,7 @@ def parse_storefronts_in_box(coord, license_types):
                 
             rating = ""
             if "rating" in result:
-                rating = int(result["rating"])
+                rating = result["rating"]
                 
             reviews_count = ""
             if "reviews_count" in result:
@@ -190,14 +203,14 @@ def parse_storefronts_in_box(coord, license_types):
                     temp.append("")
 
             # add date scraped
-            now = datetime.datetime.now().strftime("%Y-%m-%d")
+            now = datetime.datetime.now().strftime("%Y-%m")
             temp.append(now)
             queries.append(temp)
         
-        try:
-            c.executemany("INSERT INTO store VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", queries)
-        except:
-            pass
+        #try:
+        c.executemany("INSERT or IGNORE INTO store VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", queries)
+        #except:
+        #    pass
             #print("duplicate store")
         conn.commit()
         conn.close()
@@ -213,6 +226,10 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     retailer_services: whether it is a dispensary or a doctor
     c: cursor for database
     """
+
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+    #logger.setLevel(logging.INFO)
     
     # build search url
     dis = "https://weedmaps.com/"
@@ -228,7 +245,13 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     strain_queries = []
                 
     check = requests.get(dis + slug)
-    tree = html.fromstring(check.content)
+
+    # try parsing the tree
+    try:
+        tree = html.fromstring(check.content)
+    except Exception as error:
+        logger.error("Failed to convert HTML to tree", tree)
+        logger.debug("Raw scraped file", check)
     
     # get license, telephone, email, and website
     # get license
@@ -261,7 +284,7 @@ def get_metadata(identity, slug, retailer_services, c, conn):
     all_items = requests.get(base_link + menu_items.format(1)).json()
     if "data" in all_items:
         
-        now = datetime.datetime.now().strftime("%Y-%m-%d")
+        now = datetime.datetime.now().strftime("%Y-%m")
         num_pages = int(np.ceil(all_items["meta"]["total_menu_items"] / 150))
         
         for page in range(1, num_pages + 1):
@@ -381,7 +404,7 @@ def main():
     california_lattice = json.load(open("..//data//california_lattice.json", "rb"))
     print("Beginning to scrape Weedmaps in California...")
     print()
-    find_stores(california_lattice, 0, 1)
+    find_stores(california_lattice, 1, 1)
     print("Finished scraping Weedmaps in California")
     
     
