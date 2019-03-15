@@ -107,10 +107,10 @@ def get_all_stores(coord, all_stores, time_to_wait, lat_width = 1, long_width = 
             upperright_mid = ((coord[0] + upperright[0]) / scale, (coord[1] + upperright[1]) / scale)
             lowerleft_mid = ((coord[0] + lowerleft[0]) / scale, (coord[1] + lowerleft[1]) / scale)
             lowerright_mid = ((coord[0] + lowerleft[0]) / scale, (coord[1] + upperright[1]) / scale)
-            get_all_stores(upperleft_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
-            get_all_stores(upperright_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
-            get_all_stores(lowerleft_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
-            get_all_stores(lowerright_mid, all_stores, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
+            get_all_stores(upperleft_mid, all_stores, time_to_wait, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
+            get_all_stores(upperright_mid, all_stores, time_to_wait, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
+            get_all_stores(lowerleft_mid, all_stores, time_to_wait, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
+            get_all_stores(lowerright_mid, all_stores, time_to_wait, lat_width=lat_width / scale, long_width=long_width / scale, initial_try = False)
 
 def parse_storefronts_in_box(coord, license_types, time_to_wait):
     """
