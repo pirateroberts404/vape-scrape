@@ -312,7 +312,7 @@ def menu_access_attempt(base_link, menu_items, slug, page, logger):
             logger.error(e)
             logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
             logger.error("Waiting 60 seconds")
-            sleep_time(base = 60, tolerance = 0
+            sleep_time(base = 60, tolerance = 0)
             cnt += 1
             
         # json file was "too large"
