@@ -150,6 +150,7 @@ class JoinSuggestions(JoinedFile):
          return self.getLicenseTuple(item_id)
 
       else:
+         print (item_id)
          bottom_tuple = self.getWMTuples([item_id])[0]
          return bottom_tuple
 
@@ -168,7 +169,7 @@ class Windows(tk.Tk):
       self.container.grid_rowconfigure(0, weight = 1)
       self.container.grid_columnconfigure(0, weight = 1)
       self.title("Join Licenses")
-      self.join_suggestions = JoinSuggestions("..//data//searchResultsClean.csv", "..//data//store_clean.csv", "..//data//latent.json", "..//data//matches.json")
+      self.join_suggestions = JoinSuggestions("..//data//searchResultsClean.csv", "..//data//store.csv", "..//data//latent.json", "..//data//matches.json")
       self.show_frame(self.join_suggestions.get_last_filled())
 
 
