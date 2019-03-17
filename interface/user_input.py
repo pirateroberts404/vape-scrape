@@ -7,22 +7,30 @@ import pickle
 from tempfile import TemporaryFile
 import json
 import time
+import re 
 
 
 class WeedMapStores:
    def __init__(self, wm_location):
       self.wm_location = wm_location
       self.wm_df = pd.read_csv(wm_location, dtype = {'zip_code': 'str',  'phone' : 'str'})
-      #self.wm_df['address'] = self.wm_df['address'].fillna('')
-      # Add a license number category.
       self.wm_df = self.wm_df.rename(index = str, columns = {'id': 'id', 'name': 'Name', 'address': 'Address', 'city': 'City', 
                                                          'zip_code': 'Zip Code', 'phone' : 'Phone Number', 'license_type' : 'Adult-Use/Medicinal',
                                                           'web_url': 'WeedMaps URL', 'retailer_services' : 'Services'})
       self.wm_categories = ['id', 'Name', 'Address', 'City', 'Zip Code', 'Phone Number', 'Adult-Use/Medicinal', 'WeedMaps URL', 'Services']
+
+      # Strip strings for cleaner display.
       self.wm_df = self.wm_df[self.wm_categories]
-      self.wm_df['Address'] = self.wm_df['Address'].fillna('').str.lower()
+      self.wm_df['Name'] = self.wm_df['Name'].fillna('').str.upper()
+      self.wm_df['Address'] = self.wm_df['Address'].fillna('').str.upper()
+      self.wm_df['City'] = self.wm_df['City'].fillna('').str.upper()
+      self.wm_df['Phone Number'] = self.wm_df['Phone Number'].apply(self.removeSymbols)
+      self.wm_df['Adult-Use/Medicinal'] = self.wm_df['Adult-Use/Medicinal'].fillna('').str.upper()
+      self.wm_df['WeedMaps URL'] = self.wm_df['WeedMaps URL'].fillna('')
 
 
+   def removeSymbols(self, phone_number):
+      return re.sub('[^0-9]','', phone_number)
 
    def getSubset(self, wm_id_list):
       try:
@@ -51,9 +59,19 @@ class Licenses:
                                                                         'website': 'Web URL', 'License Type': 'License Type', 'Business Owner' : 'Business Owner', 'License Number' : 'License Number'})
       self.licenses_categories = ['id', 'Name', 'Address', 'City', 'Zip Code', 'Phone Number', 'Adult-Use/Medicinal', 'Web URL', 'License Type', 'Business Owner', 'License Number']
       self.licenses_df = self.licenses_df[self.licenses_categories]
+
+      self.licenses_df['Name'] = self.licenses_df['Name'].fillna('').str.upper()
+      self.licenses_df['Address'] = self.licenses_df['Address'].fillna('').str.upper()
+      self.licenses_df['City'] = self.licenses_df['City'].fillna('').str.upper()
+      self.licenses_df['Phone Number'] = self.licenses_df['Phone Number'].fillna('').str.upper()
+      self.licenses_df['Adult-Use/Medicinal'] = self.licenses_df['Adult-Use/Medicinal'].fillna('').str.upper()
+      self.licenses_df['Web URL'] = self.licenses_df['Web URL'].fillna('').str.upper()
+      self.licenses_df['License Type'] = self.licenses_df['License Type'].fillna('').str.upper()
       self.licenses_df['License Number'] = self.licenses_df['License Number'].str.replace("-", "")
-      self.licenses_df['Address'] = self.licenses_df['Address'].fillna('').str.lower()
       
+   def removeSymbols(self, license_number):
+      return re.sub('[^0-9]','', license_number)
+   
 
    def getLicenseTuple(self, license_number):
       try:
