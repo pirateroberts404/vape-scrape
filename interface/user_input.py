@@ -189,7 +189,7 @@ class Windows(tk.Tk):
       self.container.grid_rowconfigure(0, weight = 1)
       self.container.grid_columnconfigure(0, weight = 1)
       self.title("Join Licenses")
-      self.join_suggestions = JoinSuggestions("..//data//searchResultsClean.csv", "..//data//store.csv", "..//data//latent.json", "..//data//matches.json")
+      self.join_suggestions = JoinSuggestions("..//data//searchResults_clean.csv", "..//data//store.csv", "..//data//latent.json", "..//data//matches.json")
       self.show_frame(self.join_suggestions.get_last_filled())
 
 
