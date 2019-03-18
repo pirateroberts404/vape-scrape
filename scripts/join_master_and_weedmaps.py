@@ -44,6 +44,8 @@ def main(name):
     with open("..//data//latent.json", "w") as f:
         json.dump(latent_data_structure, f)
 
+    print("\n{} out of {} master file licenses joined.".format(len(licenses_joined["License Number"].unique()), len(licenses["License Number"].unique())))
+
     licenses_not_joined.phone = licenses_not_joined.phone.astype(np.int64, errors = "ignore")
     licenses_not_joined.to_csv("..//data//licenses_not_joined.csv", index = False)
     licenses_joined.to_csv('..//data//licenses_joined.csv', index = False)

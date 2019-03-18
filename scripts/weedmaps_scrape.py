@@ -23,6 +23,16 @@ def main():
 
     options = sys.argv
     c = 5
+    if "--help" in options:
+        print("""
+Usage: weedmaps_scrape.py [options] -name <name_of_masterfile>
+
+Pipeline options:
+--create                    Creates a new SQL database for data scraped from Weedmaps
+--skip-scrape               Skips scraping data from Weedmaps
+--API-limit-pause   <int>   Sets number of seconds to retry an API call to Weedmaps if Weedmaps returns an "API limit exceeded" message
+            """)
+        return
 
     if "-name" not in options:
         print("Please specify a name for the master file.")

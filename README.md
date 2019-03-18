@@ -4,6 +4,12 @@ The [California Bureau of Cannabis Control](https://www.bcc.ca.gov/) is the lead
 
 <sup>1</sup> "About Us." *Bureau of Cannabis Control*, 18 March 2019, https://www.bcc.ca.gov/about_us/.
 
+## Requirements
+
+Install the necessary packages with
+
+`pip install -r requirements.txt`
+
 ## Command line options
 
 To run the Weedmaps scrape from the command line, type
