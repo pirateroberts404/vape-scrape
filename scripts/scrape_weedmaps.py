@@ -283,7 +283,7 @@ def access_attempt(base_link, slug, logger, time_to_wait):
     
 def menu_access_attempt(base_link, menu_items, slug, page, logger, time_to_wait):
     """
-    Assumes that the menu API call will always return some type of JSON, not an empty string. THis means we can keep retrying until we succeed.
+    Assumes that the menu API call will not always return some type of JSON, not an empty string. This means we cannot keep retrying until we succeed.
     """
 
     all_items = ""
@@ -310,7 +310,7 @@ def menu_access_attempt(base_link, menu_items, slug, page, logger, time_to_wait)
         # connection was forcibly shut down
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
             logger.error(e)
-            logger.error("Connection was forcibly shut down for %s when looking at page one menu", slug)
+            logger.error("Connection was forcibly shut down for %s when looking at page %s menu", slug, str(page))
             logger.error("Waiting %s seconds", str(time_to_wait))
             sleep_time(base = time_to_wait, tolerance = 0)
             cnt += 1
@@ -352,10 +352,10 @@ def get_metadata(identity, slug, retailer_services, c, conn, time_to_wait):
     base_link = "https://api-g.weedmaps.com/discovery/v1/listings/"
     if retailer_services == "storefront":
         base_link += "dispensaries/"
-        #dis += "dispensaries/"
+        dis += "dispensaries/"
     elif retailer_services == "delivery":
         base_link += "deliveries/"
-        #dis += "deliveries/"
+        dis += "deliveries/"
     base_link += slug + "/"
     menu_items = "menu_items?page={}&page_size=150&limit=150"
     strain_queries = []
@@ -369,7 +369,7 @@ def get_metadata(identity, slug, retailer_services, c, conn, time_to_wait):
                 logger.error("Re-tried converting HTML %s times, giving up", str(cnt))
                 break
             # attempt to access the weedmaps store page for license info
-            check = access_attempt(base_link, slug, logger, time_to_wait)
+            check = access_attempt(dis + slug, slug, logger, time_to_wait)
             tree = html.fromstring(check.content)
             parsed = True
         except Exception as error:
@@ -534,16 +534,15 @@ def find_stores(lattice, base, tolerance, time_to_wait):
 def main():
     california_lattice = json.load(open("..//data//california_lattice.json", "rb"))
     print("Beginning to scrape Weedmaps in California")
-    c = input("Would you like to traverse the lattice backwards? [Y/N]")
+    c = input("Would you like to traverse the lattice backwards? [Y/N]\n")
     if c == "Y":
         california_lattice = california_lattice[::-1]
         print("Traversing backwards")
     if c == "N":
         print("Traversing forwards")
-    print()
-    c = input("How much time (in seconds) do you want to wait when we exceed the maximum API usage? Please enter an integer")
+    c = input("How much time (in seconds) do you want to wait when we exceed the maximum API usage? Please enter an integer\n")
     c = float(c.strip()) // 1
-    print("Will sleep for %s seconds", str(c))
+    print("Will sleep for {} seconds".format(str(c)))
     find_stores(california_lattice, 1, 1, c)
     print("Finished scraping Weedmaps in California")
     
@@ -555,5 +554,5 @@ if __name__ == '__main__':
         - when accessing the store metadata (in other words, getting the actual page)
         - when accessing the store menu
     """
-    logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", filemode = "w", level=logging.DEBUG)
+    logging.basicConfig(filename="..//debug//scrape_diagnostics.txt", filemode = "w", level=logging.ERROR)
     main()
