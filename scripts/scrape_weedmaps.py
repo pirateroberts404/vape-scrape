@@ -531,18 +531,18 @@ def find_stores(lattice, base, tolerance, time_to_wait):
         sleep_time(base, tolerance)
         gc.collect()
 
-def main():
+def main(c):
     california_lattice = json.load(open("..//data//california_lattice.json", "rb"))
     print("Beginning to scrape Weedmaps in California")
-    c = input("Would you like to traverse the lattice backwards? [Y/N]\n")
-    if c == "Y":
-        california_lattice = california_lattice[::-1]
-        print("Traversing backwards")
-    if c == "N":
-        print("Traversing forwards")
-    c = input("How much time (in seconds) do you want to wait when we exceed the maximum API usage? Please enter an integer\n")
-    c = float(c.strip()) // 1
-    print("Will sleep for {} seconds".format(str(c)))
+    #c = input("Would you like to traverse the lattice backwards? [Y/N]\n")
+    #if c == "Y":
+    #    california_lattice = california_lattice[::-1]
+    #    print("Traversing backwards")
+    #if c == "N":
+    #    print("Traversing forwards")
+    #c = input("How much time (in seconds) do you want to wait when we exceed the maximum API usage? Please enter an integer\n")
+    #c = float(c.strip()) // 1
+    print("Will sleep for {} seconds after exceeding maximum API usage".format(str(c)))
     find_stores(california_lattice, 1, 1, c)
     print("Finished scraping Weedmaps in California")
     
